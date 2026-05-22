@@ -45,3 +45,15 @@ class InstallmentDetails:
 
     # Debt status AFTER this installment and overpayment have been paid
     remaining_balance: Decimal
+
+
+@dataclass(frozen=True)
+class SimulationSummary:
+    """
+    Summary comparing the standard schedule against the overpaid schedule.
+    """
+    total_paid_standard: Decimal  # Total cost without overpayments
+    total_paid_with_overpayments: Decimal  # Total cost including overpayments
+    total_interest_saved: Decimal  # Net interest savings
+    months_saved: int  # Number of months shaved off the loan term
+    total_overpayments_made: Decimal  # Total amount of extra capital injected
