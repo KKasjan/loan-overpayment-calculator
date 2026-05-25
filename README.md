@@ -45,8 +45,10 @@ loan-overpayment-calculator/
 ├── pytest.ini              # Pytest framework settings
 ├── README.md               # Project documentation
 └── requirements.txt        # Core development dependencies (streamlit, pandas, pytest, ruff, mypy)
+```
 
 ## 🔄 Local Quality Gates
+
 To maintain production-grade standards and ensure zero technical debt, the project enforces strict quality checks locally before any code state is finalized:
 * **Static Analysis**: `mypy` ensures explicit and strict type safety across all financial entities and data layers.
 * **Linting**: `ruff check` scans the codebase for industry-standard compliance, potential bugs, and code smells.
@@ -103,6 +105,7 @@ The engine executes simulation tracks in sequential phases
                                          ├── 1. Financial Comparison Metrics
                                          ├── 2. Visual Balance Breakdown Line Charts
                                          └── 3. Filterable Amortization Tables (Tabs)
+```
 
 ### Financial Compounding Formula
 
