@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from enum import Enum
+from typing import List, Any
 
 
 class OverpaymentStrategy(Enum):
@@ -57,3 +58,5 @@ class SimulationSummary:
     total_interest_saved: Decimal  # Net interest savings
     months_saved: int  # Number of months shaved off the loan term
     total_overpayments_made: Decimal  # Total amount of extra capital injected
+    standard_schedule: List[Any]  # Stores the full standard breakdown
+    overpayment_schedule: List[Any]  # Stores the full overpaid breakdown

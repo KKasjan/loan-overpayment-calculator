@@ -239,4 +239,6 @@ def calculate_simulation_summary(
         total_overpayments_made=total_overpayments.quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         ),
+        standard_schedule=standard_schedule,
+        overpayment_schedule=overpaid_schedule
     )
