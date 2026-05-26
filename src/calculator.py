@@ -38,10 +38,10 @@ def get_next_payment_date(current_date: date, payment_day: int) -> date:
 
 
 def calculate_daily_interest(
-        balance: Decimal,
-        annual_rate: Decimal,
-        start_date: date,
-        end_date: date,
+    balance: Decimal,
+    annual_rate: Decimal,
+    start_date: date,
+    end_date: date,
 ) -> Decimal:
     """Calculates interest accrued between two dates, compounded daily.
     The formula takes into account the actual number of days in a year
@@ -71,8 +71,7 @@ def calculate_daily_interest(
 
 
 def generate_amortization_schedule(
-        params: LoanParameters,
-        overpayments: Optional[List[Overpayment]] = None
+    params: LoanParameters, overpayments: Optional[List[Overpayment]] = None
 ) -> List[InstallmentDetails]:
     """
     Generates an amortization schedule, optionally including overpayments,
@@ -124,8 +123,7 @@ def generate_amortization_schedule(
             op for op in overpayments if current_date < op.date <= next_date
         ]
         total_period_overpayment = sum(
-            (op.amount for op in period_overpayments),
-            Decimal("0.00")
+            (op.amount for op in period_overpayments), Decimal("0.00")
         )
 
         # 3. Calculate standard installment components
@@ -165,10 +163,9 @@ def generate_amortization_schedule(
                 # term but lower balance
                 if monthly_rate > 0:
                     base_installment = (
-                       current_balance
-                       * (monthly_rate * (1 + monthly_rate)
-                          ** months_left_after_this)
-                       / ((1 + monthly_rate) ** months_left_after_this - 1)
+                        current_balance
+                        * (monthly_rate * (1 + monthly_rate) ** months_left_after_this)
+                        / ((1 + monthly_rate) ** months_left_after_this - 1)
                     )
                 else:
                     base_installment = current_balance / months_left_after_this
@@ -192,7 +189,7 @@ def generate_amortization_schedule(
                 overpayment=applied_overpayment,
                 remaining_balance=current_balance.quantize(
                     Decimal("0.01"), rounding=ROUND_HALF_UP
-                )
+                ),
             )
         )
 
@@ -203,40 +200,30 @@ def generate_amortization_schedule(
 
 
 def calculate_simulation_summary(
-        params: LoanParameters, overpayments: List[Overpayment]
+    params: LoanParameters, overpayments: List[Overpayment]
 ) -> SimulationSummary:
     """Compares the standard loan schedule against the overpaid schedule.
 
     Returns financial benefits and savings metrics.
     """
-    standard_schedule = generate_amortization_schedule(
-        params,
-        overpayments=None
-    )
+    standard_schedule = generate_amortization_schedule(params, overpayments=None)
     overpaid_schedule = generate_amortization_schedule(params, overpayments)
 
     total_interest_standard = sum(
-        (r.interest for r in standard_schedule),
-        Decimal("0.00")
+        (r.interest for r in standard_schedule), Decimal("0.00")
     )
     total_paid_standard = sum(
-        (r.total_installment for r in standard_schedule),
-        Decimal("0.00")
+        (r.total_installment for r in standard_schedule), Decimal("0.00")
     )
 
     total_interest_overpaid = sum(
-        (r.interest for r in overpaid_schedule),
-        Decimal("0.00")
+        (r.interest for r in overpaid_schedule), Decimal("0.00")
     )
     total_overpayments = sum(
-        (r.overpayment for r in overpaid_schedule),
-        Decimal("0.00")
+        (r.overpayment for r in overpaid_schedule), Decimal("0.00")
     )
     total_paid_with_overpayments = (
-        sum(
-            (r.total_installment for r in overpaid_schedule),
-            Decimal("0.00")
-        )
+        sum((r.total_installment for r in overpaid_schedule), Decimal("0.00"))
         + total_overpayments
     )
 
@@ -258,5 +245,5 @@ def calculate_simulation_summary(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         ),
         standard_schedule=standard_schedule,
-        overpayment_schedule=overpaid_schedule
+        overpayment_schedule=overpaid_schedule,
     )

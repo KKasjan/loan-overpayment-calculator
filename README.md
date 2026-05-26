@@ -1,5 +1,6 @@
 # Advanced Loan Overpayment Calculator 💰
 
+![CI Pipeline](https://github.com/KKasjan/loan-overpayment-calculator/actions/workflows/ci.yml/badge.svg)
 [➡️ View on GitHub](https://github.com/KKasjan/loan-overpayment-calculator)
 
 A professional, lightweight Python tool designed to simulate mortgage loan repayment schedules and calculate the exact financial benefits of overpayments, replicating complex banking mechanisms.
@@ -12,7 +13,8 @@ This project serves as a premium showcase of a professional engineering workflow
 * **Bank-Grade Simulation**: Replicating specific banking behaviors, such as daily interest compounding based on actual monthly calendars and leap years (matching standard practices of banks like ING).
 * **Interactive Frontend**: Powered by a reactive Streamlit dashboard providing immediate financial metrics, visual trend comparison, and data drill-down.
 * **Test-Driven Execution**: Covered by a complete, robust suite of unit, edge-case, and mathematical logic integration tests.
-* **Automated Quality Gates**: Enforcing zero-technical-debt standards via a fully automated pipeline utilizing Ruff, MyPy, and Pytest.
+* **Full-Stack Automation UI Suite**: Guarded by user-facing end-to-end browser tests to verify frontend stability and dynamic recalculation flows.
+* **Automated Quality Gates**: Enforcing zero-technical-debt standards via a fully automated CI pipeline utilizing Ruff, MyPy, Pytest, and Playwright.
 
 ## 🚀 Features
 
@@ -31,20 +33,21 @@ This project serves as a premium showcase of a professional engineering workflow
 ```text
 loan-overpayment-calculator/
 ├── src/
-│   ├── __init__.py         # Initialization
-│   ├── calculator.py       # Core Math Engine (Schedules, Daily Interest, Overpayments)
-│   └── models.py           # Strictly typed financial Data Models & Data Structures
+│   ├── __init__.py           # Initialization
+│   ├── calculator.py         # Core Math Engine (Schedules, Daily Interest, Overpayments)
+│   └── models.py             # Strictly typed financial Data Models & Data Structures
 │
 ├── tests/
-│   ├── __init__.py         # Test Initialization
-│   └── test_calculator.py  # Unit & Integration suite (Leap years, Strategies, Zero-balance closures)
+│   ├── __init__.py           # Test Initialization
+│   └── test_calculator.py    # Unit & Integration suite (Leap years, Strategies, Zero-balance closures)
+│   └── test_ui_dashboard.py  # Playwright E2E UI suite (Dashboard interactions & core metrics verification)
 │
-├── .gitattributes          # Git attributes configuration
-├── app.py                  # Streamlit Interactive Web Application Frontend
-├── pyproject.toml          # Tool configuration (Ruff linter, formatter, and environment)
-├── pytest.ini              # Pytest framework settings
-├── README.md               # Project documentation
-└── requirements.txt        # Core development dependencies (streamlit, pandas, pytest, ruff, mypy)
+├── .gitattributes            # Git attributes configuration
+├── app.py                    # Streamlit Interactive Web Application Frontend
+├── pyproject.toml            # Tool configuration (Ruff linter, formatter, and environment)
+├── pytest.ini                # Pytest framework settings
+├── README.md                 # Project documentation
+└── requirements.txt          # Core development dependencies (streamlit, pandas, pytest, ruff, mypy)
 ```
 
 ## 🔄 Local Quality Gates
@@ -59,21 +62,33 @@ Quality is baked into the very core of this engine. The test suite guarantees th
 
 **Running the Test Suite**
 
-1. Install the development and testing dependencies:
+* Backend Unit & Integration Tests (Pytest)
+  Validates core calculations, annuity math, leap year shifts, and overpayment state machines.
+
+  1. Install the development and testing dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-2. Run the tests from the root directory:
+  2. Run backend suite:
    ```bash
-   pytest -v
+   pytest tests/test_calculator.py -v
    ```
 
-**The suite covers:**
+* Frontend End-to-End Tests (Playwright)
+  Validates UI responsiveness, User-facing Locators, dynamic Streamlit state re-renders, and chart controls stability under Chromium browser.
 
-* Annuity math validation.
-* Leap year boundary transitions (365 vs 366 interest distribution).
-* Calendar shifting for due dates.
-* Overpayment math assertions for both SHORTEN_TERM and REDUCE_INSTALLMENT.
+  1. Install browser binaries (First time setup):
+   ```bash
+   playwright install
+   ```
+  2. Run UI suite in headless mode (CI standard):
+   ```bash
+   pytest tests/test_ui_dashboard.py -v
+   ```
+   3. Run UI suite in headed mode to watch the automation in real-time:
+   ```bash
+   pytest tests/test_ui_dashboard.py -v --headed
+   ```
 
 ## 🛠️ Technical Stack
 
@@ -82,8 +97,11 @@ Quality is baked into the very core of this engine. The test suite guarantees th
 * **Data Engineering:** Pandas (DataFrames transformation for UI mapping)
 * **Core Math Component:** Python Decimal (Bank-standard rounding via ROUND_HALF_UP)
 * **Architecture:** Layered, domain-driven structure (Models ➔ Calculator Logic)
-* **Testing Framework:** Pytest
+* **Testing Framework:** 
+   - Pytest (Test runner & execution environment)
+   - Playwright (E2E Browser Automation via pytest-playwright)
 * **Static Analysis & Style:** MyPy & Ruff
+* **CI/CD Platform:** GitHub Actions
 
 ## 📋 How It Works
 The engine executes simulation tracks in sequential phases
@@ -128,6 +146,7 @@ This daily slice is accumulated and rounded to two decimal points at the monthly
 2. Setup your local environment and ensure dependencies are met:
    ```bash
    pip install -r requirements.txt
+   playwright install
    ```
 
 3. Launch the web-based interactive panel:
@@ -142,18 +161,13 @@ This daily slice is accumulated and rounded to two decimal points at the monthly
 
 ## 📈 Roadmap
 
-    [x] Establish strict Decimal model data layer.
-
-    [x] Build automated leap-year-aware daily interest function.
-
-    [x] Core engine implementation for classic amortization schedules.
-
-    [x] Implement SHORTEN_TERM logic with 0.00 PLN closure proofing.
-
-    [x] Implement REDUCE_INSTALLMENT dynamic recalculation logic.
-
-    [x] Add side-by-side multi-scenario simulation wrapper.
-
-    [x] Transition codebase to standardized English documentation and docstrings.
-
-    [x] Add an interactive, production-grade Graphical Dashboard via Streamlit.
+   [x] Establish strict Decimal model data layer.
+   [x] Build automated leap-year-aware daily interest function.
+   [x] Core engine implementation for classic amortization schedules.
+   [x] Implement SHORTEN_TERM logic with 0.00 PLN closure proofing.
+   [x] Implement REDUCE_INSTALLMENT dynamic recalculation logic.
+   [x] Add side-by-side multi-scenario simulation wrapper.
+   [x] Transition codebase to standardized English documentation and docstrings.
+   [x] Add an interactive, production-grade Graphical Dashboard via Streamlit.
+   [x] Implement Playwright E2E automation testing suite for UI validation.
+   [x] Setup continuous integration (GitHub Actions) for automatic code validation.

@@ -12,9 +12,7 @@ st.set_page_config(
 )
 
 st.title("Advanced Loan Overpayment Calculator 💰")
-st.markdown(
-    "Replicating complex banking mechanisms with daily interest compounding."
-)
+st.markdown("Replicating complex banking mechanisms with daily interest compounding.")
 
 # ==========================================
 # SIDEBAR: INPUT PARAMETERS
@@ -70,7 +68,7 @@ overpayment_type = st.sidebar.radio(
         "No Overpayments",
         "Regular Monthly Overpayment",
         "Single One-Time Overpayment",
-    ]
+    ],
 )
 
 overpayments = []
@@ -143,15 +141,13 @@ elif overpayment_type == "Single One-Time Overpayment":
     )
 
     # Calculate target date for the single overpayment execution
-    target_year = loan_params.start_date.year + (
-        loan_params.start_date.month + op_month_delta - 1
-    ) // 12
-    target_month = (
-        loan_params.start_date.month + op_month_delta
-    ) % 12 + 1
+    target_year = (
+        loan_params.start_date.year
+        + (loan_params.start_date.month + op_month_delta - 1) // 12
+    )
+    target_month = (loan_params.start_date.month + op_month_delta) % 12 + 1
 
     overpayments.append(
-
         Overpayment(
             date=date(
                 target_year,
@@ -179,8 +175,7 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     st.metric(
-        label="Total Cost (Standard)",
-        value=f"{summary.total_paid_standard:,.2f} PLN"
+        label="Total Cost (Standard)", value=f"{summary.total_paid_standard:,.2f} PLN"
     )
 with col2:
     cost_delta = None
@@ -197,13 +192,11 @@ with col2:
     )
 
 term_delta = (
-    f"{summary.months_saved} months shorter!"
-    if summary.months_saved > 0
-    else None
+    f"{summary.months_saved} months shorter!" if summary.months_saved > 0 else None
 )
 with col3:
     st.metric(
-        label="🔥 Total Interest SAVE",
+        label="🔥 Total Interest SAVED",
         value=f"{summary.total_interest_saved:,.2f} PLN",
         delta=term_delta,
         delta_color="normal",
@@ -216,13 +209,11 @@ col4, col5 = st.columns(2)
 with col4:
     st.metric(
         label="Total Overpayments Deposited",
-        value=f"{summary.total_overpayments_made:,.2f} PLN"
+        value=f"{summary.total_overpayments_made:,.2f} PLN",
     )
 
 actual_term_delta = (
-    f"-{summary.months_saved} months"
-    if summary.months_saved > 0
-    else None
+    f"-{summary.months_saved} months" if summary.months_saved > 0 else None
 )
 
 with col5:
@@ -230,7 +221,7 @@ with col5:
         label="Actual Loan Term",
         value=f"{months - summary.months_saved} months",
         delta=actual_term_delta,
-        delta_color="inverse"
+        delta_color="inverse",
     )
 
 # ==========================================
@@ -242,12 +233,8 @@ st.write("## 📈 Balance Breakdown Over Time")
 if summary.standard_schedule and summary.overpayment_schedule:
     import pandas as pd
 
-    df_standard = pd.DataFrame(
-        [vars(r) for r in summary.standard_schedule]
-    )
-    df_overpayment = pd.DataFrame(
-        [vars(r) for r in summary.overpayment_schedule]
-    )
+    df_standard = pd.DataFrame([vars(r) for r in summary.standard_schedule])
+    df_overpayment = pd.DataFrame([vars(r) for r in summary.overpayment_schedule])
 
     # Dynamic detection of the remaining principal column name
     possible_fields = [
@@ -257,26 +244,17 @@ if summary.standard_schedule and summary.overpayment_schedule:
         "remaining_principal",
         "balance",
     ]
-    balance_col = next(
-        (f for f in possible_fields if f in df_standard.columns),
-        None
-    )
+    balance_col = next((f for f in possible_fields if f in df_standard.columns), None)
 
     if balance_col:
         # Create a unified DataFrame structured specifically
         # for the line chart
-        chart_df = pd.DataFrame(
-            index=range(max(len(df_standard), len(df_overpayment)))
-        )
+        chart_df = pd.DataFrame(index=range(max(len(df_standard), len(df_overpayment))))
 
         # Cast Decimal values to float as Streamlit charting
         # libraries require float types
-        chart_df["Standard Schedule"] = (
-            df_standard[balance_col].astype(float)
-        )
-        chart_df["With Overpayments"] = (
-            df_overpayment[balance_col].astype(float)
-        )
+        chart_df["Standard Schedule"] = df_standard[balance_col].astype(float)
+        chart_df["With Overpayments"] = df_overpayment[balance_col].astype(float)
 
         # Render the interactive line chart within the application UI
         st.line_chart(chart_df)
@@ -293,9 +271,7 @@ if summary.standard_schedule and summary.overpayment_schedule:
 
     # Initialize tab containers to cleanly organize
     # the data without cluttering the view
-    tab1, tab2 = st.tabs(
-        ["Standard Schedule", "Schedule With Overpayments"]
-    )
+    tab1, tab2 = st.tabs(["Standard Schedule", "Schedule With Overpayments"])
 
     with tab1:
         st.write("### Base Loan Plan (No Overpayments)")
@@ -310,6 +286,4 @@ if summary.standard_schedule and summary.overpayment_schedule:
         st.dataframe(df_overpayment, use_container_width=True)
 
 else:
-    st.info(
-        "No tracking data available to render charts and schedules."
-    )
+    st.info("No tracking data available to render charts and schedules.")

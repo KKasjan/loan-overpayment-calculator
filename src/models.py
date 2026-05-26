@@ -53,6 +53,7 @@ class SimulationSummary:
     """
     Summary comparing the standard schedule against the overpaid schedule.
     """
+
     total_paid_standard: Decimal  # Total cost without overpayments
     total_paid_with_overpayments: Decimal  # Total cost including overpayments
     total_interest_saved: Decimal  # Net interest savings
