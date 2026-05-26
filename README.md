@@ -161,13 +161,22 @@ This daily slice is accumulated and rounded to two decimal points at the monthly
 
 ## 📈 Roadmap
 
-   [x] Establish strict Decimal model data layer.
-   [x] Build automated leap-year-aware daily interest function.
-   [x] Core engine implementation for classic amortization schedules.
-   [x] Implement SHORTEN_TERM logic with 0.00 PLN closure proofing.
-   [x] Implement REDUCE_INSTALLMENT dynamic recalculation logic.
-   [x] Add side-by-side multi-scenario simulation wrapper.
-   [x] Transition codebase to standardized English documentation and docstrings.
-   [x] Add an interactive, production-grade Graphical Dashboard via Streamlit.
-   [x] Implement Playwright E2E automation testing suite for UI validation.
-   [x] Setup continuous integration (GitHub Actions) for automatic code validation.
+[x] Establish strict Decimal model data layer.
+
+[x] Build automated leap-year-aware daily interest function.
+
+[x] Core engine implementation for classic amortization schedules.
+
+[x] Implement SHORTEN_TERM logic with 0.00 PLN closure proofing.
+
+[x] Implement REDUCE_INSTALLMENT dynamic recalculation logic.
+
+[x] Add side-by-side multi-scenario simulation wrapper.
+
+[x] Transition codebase to standardized English documentation and docstrings.
+
+[x] Add an interactive, production-grade Graphical Dashboard via Streamlit.
+
+[x] Implement Playwright E2E automation testing suite for UI validation.
+
+[x] Setup continuous integration (GitHub Actions) for automatic code validation.
