@@ -123,7 +123,10 @@ def generate_amortization_schedule(
         period_overpayments = [
             op for op in overpayments if current_date < op.date <= next_date
         ]
-        total_period_overpayment = sum(op.amount for op in period_overpayments)
+        total_period_overpayment = sum(
+            (op.amount for op in period_overpayments),
+            Decimal("0.00")
+        )
 
         # 3. Calculate standard installment components
         if current_balance + interest < base_installment:
@@ -145,7 +148,7 @@ def generate_amortization_schedule(
                 applied_overpayment = current_balance
                 current_balance = Decimal("0.00")
             else:
-                applied_overpayment = total_period_overpayment
+                applied_overpayment = Decimal(total_period_overpayment)
                 current_balance -= applied_overpayment
 
             # Apply strategies re-calculation based on the LAST overpayment
@@ -212,13 +215,28 @@ def calculate_simulation_summary(
     )
     overpaid_schedule = generate_amortization_schedule(params, overpayments)
 
-    total_interest_standard = sum(r.interest for r in standard_schedule)
-    total_paid_standard = sum(r.total_installment for r in standard_schedule)
+    total_interest_standard = sum(
+        (r.interest for r in standard_schedule),
+        Decimal("0.00")
+    )
+    total_paid_standard = sum(
+        (r.total_installment for r in standard_schedule),
+        Decimal("0.00")
+    )
 
-    total_interest_overpaid = sum(r.interest for r in overpaid_schedule)
-    total_overpayments = sum(r.overpayment for r in overpaid_schedule)
+    total_interest_overpaid = sum(
+        (r.interest for r in overpaid_schedule),
+        Decimal("0.00")
+    )
+    total_overpayments = sum(
+        (r.overpayment for r in overpaid_schedule),
+        Decimal("0.00")
+    )
     total_paid_with_overpayments = (
-        sum(r.total_installment for r in overpaid_schedule)
+        sum(
+            (r.total_installment for r in overpaid_schedule),
+            Decimal("0.00")
+        )
         + total_overpayments
     )
 
