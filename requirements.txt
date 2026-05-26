@@ -4,6 +4,8 @@ pandas==3.0.3
 
 # Testing Framework
 pytest==8.1.1
+playwright>=1.40.0
+pytest-playwright>=0.4.0
 
 # Code Quality & Static Analysis
 ruff==0.3.4
