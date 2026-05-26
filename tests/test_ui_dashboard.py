@@ -2,9 +2,7 @@ from playwright.sync_api import Page, expect
 # from decimal import Decimal
 
 
-def test_streamlit_dashboard_calculates_and_display_metrics(
-        page: Page
-) -> None:
+def test_streamlit_dashboard_calculates_and_display_metrics(page: Page) -> None:
     # 1. Opening the local dashboard
     # (Make sure streamlit run app.py is running in the background!)
     page.goto("http://localhost:8501")
@@ -12,10 +10,7 @@ def test_streamlit_dashboard_calculates_and_display_metrics(
     # 2. Waiting for the main application container to load
     # Streamlit assigns the 'section' tag to the main section
     expect(
-        page.get_by_role(
-            "heading",
-            name="Advanced Loan Overpayment Calculator"
-        )
+        page.get_by_role("heading", name="Advanced Loan Overpayment Calculator")
     ).to_be_visible()
 
     # # 3. Interacting with sidebars - entering test data
@@ -53,9 +48,4 @@ def test_streamlit_dashboard_calculates_and_display_metrics(
     # Check if schedule table tabs (st.tabs) are visible
     expect(page.get_by_text("Detailed Amortization Schedule")).to_be_visible()
     expect(page.get_by_role("tab", name="Standard Schedule")).to_be_visible()
-    expect(
-        page.get_by_role(
-            "tab",
-            name="Schedule With Overpayments"
-        )
-    ).to_be_visible()
+    expect(page.get_by_role("tab", name="Schedule With Overpayments")).to_be_visible()

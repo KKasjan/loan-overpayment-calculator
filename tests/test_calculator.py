@@ -5,7 +5,7 @@ from src.calculator import (
     calculate_daily_interest,
     generate_amortization_schedule,
     calculate_simulation_summary,
-    )
+)
 from src.models import LoanParameters, Overpayment, OverpaymentStrategy
 
 
@@ -37,12 +37,15 @@ def test_calculate_daily_interest_leap_year() -> None:
     # Total: 49.2701 -> rounded to 49.27
     expected_interest = Decimal("49.27")
 
-    assert calculate_daily_interest(
-        balance,
-        rate,
-        start,
-        end,
-    ) == expected_interest
+    assert (
+        calculate_daily_interest(
+            balance,
+            rate,
+            start,
+            end,
+        )
+        == expected_interest
+    )
 
 
 # Test 4 - Small loan simulation: PLN 10,000
@@ -80,7 +83,7 @@ def test_overpayment_short_term() -> None:
         Overpayment(
             amount=Decimal("30000.00"),
             strategy=OverpaymentStrategy.SHORTEN_TERM,
-            date=date(2026, 5, 10)
+            date=date(2026, 5, 10),
         )
     ]
 
@@ -108,7 +111,7 @@ def test_overpayment_reduce_installment() -> None:
         Overpayment(
             amount=Decimal("30000.00"),
             strategy=OverpaymentStrategy.REDUCE_INSTALLMENT,
-            date=date(2026, 5, 10)
+            date=date(2026, 5, 10),
         )
     ]
 
@@ -136,7 +139,7 @@ def test_simulation_summary_calculation() -> None:
         Overpayment(
             amount=Decimal("30000.00"),
             strategy=OverpaymentStrategy.SHORTEN_TERM,
-            date=date(2026, 2, 10)
+            date=date(2026, 2, 10),
         )
     ]
 
