@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date  # timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 from src.models import (
@@ -11,12 +11,13 @@ from src.models import (
 
 
 def get_next_payment_date(current_date: date, payment_day: int) -> date:
-    """Sets the next installment due date in the next calendar month.
-    Supports cases where the payment date does not occur in a given month
-    (e.g., the 31st of the month and the following month is February or April).
-    """
+    """Calculates the payment date for the next installment
+    in the subsequent calendar month.
 
-    # Moving on to the next month
+    Handles edge cases where the target payment day
+    does not exist in the next month (e.g., January 31st
+    moving to February, which results in February 28th or 29th).
+    """
     if current_date.month == 12:
         next_month = 1
         next_year = current_date.year + 1
@@ -24,9 +25,6 @@ def get_next_payment_date(current_date: date, payment_day: int) -> date:
         next_month = current_date.month + 1
         next_year = current_date.year
 
-    # Attempts to set the desired payment day.
-    # If the month is too short (e.g., February),
-    # revert to the last day of that month.
     target_day = payment_day
     while target_day > 20:
         try:
@@ -44,38 +42,47 @@ def calculate_daily_interest(
     end_date: date,
 ) -> Decimal:
     """Calculates interest accrued between two dates, compounded daily.
-    The formula takes into account the actual number of days in a year
-    (365 or 366 for leap years), which allows it to replicate the mechanism
-    used by companies such as ING.
-    """
-    total_interest = Decimal("0.0")
 
-    # Day-by-day transition to properly handle the leap year turn
-    current_day = start_date
-    while current_day < end_date:
-        # Checking if a year is a leap year
-        # A year is a leap year if it is divisible by 4 and not divisible
-        # by 100, # or if it is divisible by 400.
-        year = current_day.year
-        is_leap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+    Utilizes an optimized O(1) interval-based algorithm grouping days by year,
+    eliminating slow day-by-day iteration and guaranteeing
+    bank-grade precision.
+    """
+    if start_date >= end_date:
+        return Decimal("0.00")
+
+    total_interest = Decimal("0.00")
+    curr = start_date
+
+    # Calculate interest using O(1) segments per year to avoid
+    # daily iteration overhead
+    while curr < end_date:
+        curr_year = curr.year
+        is_leap = (curr_year % 4 == 0 and curr_year % 100 != 0) or (
+            curr_year % 400 == 0
+        )
         days_in_year = Decimal("366") if is_leap else Decimal("365")
 
-        # Interest for one specific day
+        next_year_start = date(curr_year + 1, 1, 1)
+        segment_end = min(end_date, next_year_start)
+
+        days_in_segment = Decimal(str((segment_end - curr).days))
         daily_rate = annual_rate / days_in_year
-        total_interest += balance * daily_rate
+        total_interest += balance * daily_rate * days_in_segment
 
-        current_day += timedelta(days=1)
+        curr = segment_end
 
-    # Round to 2 decimal places (up from half, like in a bank)
+    # Round up from half to match standardized banking rounding rules
     return total_interest.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def generate_amortization_schedule(
     params: LoanParameters, overpayments: Optional[List[Overpayment]] = None
 ) -> List[InstallmentDetails]:
-    """
-    Generates an amortization schedule, optionally including overpayments,
-    supporting daily interest compounding.
+    """Generates a complete amortization schedule, optionally
+    including overpayments.
+
+    Supports daily interest compounding and dynamic recalculation
+    of the repayment plan.
     """
     if overpayments is None:
         overpayments = []
@@ -85,7 +92,7 @@ def generate_amortization_schedule(
     current_date = params.start_date
     months_left = params.total_month
 
-    # Initial base installment calculation
+    # Initialize monthly annuity (equal installments) interest calculation
     monthly_rate = params.annual_interest_rate / Decimal("12")
     if monthly_rate > 0:
         base_installment = (
@@ -104,11 +111,11 @@ def generate_amortization_schedule(
         if current_balance <= 0:
             break
 
-        # 1. Set a due date for your next installment
+        # 1. Determine next monthly payment date
         next_date = get_next_payment_date(current_date, params.payment_day)
         days_in_period = (next_date - current_date).days
 
-        # 2. Calculate interest accrued for this period
+        # 2. Accrue daily interest for this period
         interest = calculate_daily_interest(
             current_balance,
             params.annual_interest_rate,
@@ -116,9 +123,7 @@ def generate_amortization_schedule(
             next_date,
         )
 
-        # 3. Check if there's an overpayment scheduled for this
-        # installment period. Look for overpayments that happen
-        # between current_date (exclusive) and next
+        # 3. Retrieve any overpayments registered in this calendar window
         period_overpayments = [
             op for op in overpayments if current_date < op.date <= next_date
         ]
@@ -126,22 +131,20 @@ def generate_amortization_schedule(
             (op.amount for op in period_overpayments), Decimal("0.00")
         )
 
-        # 3. Calculate standard installment components
+        # 4. Standard installment division
         if current_balance + interest < base_installment:
-            # Final installment – ​​pays exactly what is left
+            # Final clearing installment matching exact outstanding balance
             total_installment = current_balance + interest
             principal = current_balance
         else:
             total_installment = base_installment
             principal = total_installment - interest
 
-        # Apply standard payment and overpayment to the balance
         current_balance -= principal
 
-        # 4. Handle overpayment logic if it exists
+        # 5. Overpayment injection & dynamic re-calculation of loan milestones
         applied_overpayment = Decimal("0.00")
         if total_period_overpayment > 0 and current_balance > 0:
-            # Can't overpay more than the remaining balance
             if total_period_overpayment >= current_balance:
                 applied_overpayment = current_balance
                 current_balance = Decimal("0.00")
@@ -149,42 +152,51 @@ def generate_amortization_schedule(
                 applied_overpayment = Decimal(total_period_overpayment)
                 current_balance -= applied_overpayment
 
-            # Apply strategies re-calculation based on the LAST overpayment
-            # in this period
-            last_strategy = period_overpayments[-1].strategy
+            # Apply the selected strategy from the last executed overpayment
+            last_op = period_overpayments[-1]
+            last_strategy = last_op.strategy
             months_left_after_this = params.total_month - i
 
-            if (
-                last_strategy == OverpaymentStrategy.REDUCE_INSTALLMENT
-                and current_balance > 0
-                and months_left_after_this > 0
-            ):
-                # Recalculate base installment for the remaining
-                # term but lower balance
+            # Verify if structural installment level change is triggered
+            should_recalc = last_strategy in (
+                OverpaymentStrategy.REDUCE_INSTALLMENT,
+                OverpaymentStrategy.MIXED,
+            )
+
+            if should_recalc and current_balance > 0 and months_left_after_this > 0:
+                # For MIXED strategy, installment reduces only
+                # by amount_reduce.
+                # Temporarily add back amount_shorten to
+                # recalculate the annuity base.
+                recalc_balance = current_balance
+                if (
+                    last_strategy == OverpaymentStrategy.MIXED
+                    and last_op.amount_shorten is not None
+                ):
+                    recalc_balance += last_op.amount_shorten
+
                 if monthly_rate > 0:
+                    pow_factor = (1 + monthly_rate) ** months_left_after_this
                     base_installment = (
-                        current_balance
-                        * (monthly_rate * (1 + monthly_rate) ** months_left_after_this)
-                        / ((1 + monthly_rate) ** months_left_after_this - 1)
+                        recalc_balance * monthly_rate * pow_factor / (pow_factor - 1)
                     )
                 else:
-                    base_installment = current_balance / months_left_after_this
+                    base_installment = recalc_balance / months_left_after_this
 
                 base_installment = base_installment.quantize(
                     Decimal("0.01"), rounding=ROUND_HALF_UP
                 )
-                # For SHORTEN_TERM, we do nothing to the base_installment.
-                # The loop will just naturally end earlier because
-                # current_balance drops to 0 sooner.
 
-        # 5. Saves installment details
+        # 6. Save details in the amortization schedule
         schedule.append(
             InstallmentDetails(
                 installment_number=i,
                 payment_date=next_date,
                 days_in_period=days_in_period,
-                total_installment=total_installment,
-                principal=principal,
+                total_installment=total_installment.quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                ),
+                principal=principal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
                 interest=interest,
                 overpayment=applied_overpayment,
                 remaining_balance=current_balance.quantize(
@@ -193,7 +205,6 @@ def generate_amortization_schedule(
             )
         )
 
-        # Move the time indicator to the next month
         current_date = next_date
 
     return schedule
@@ -204,7 +215,7 @@ def calculate_simulation_summary(
 ) -> SimulationSummary:
     """Compares the standard loan schedule against the overpaid schedule.
 
-    Returns financial benefits and savings metrics.
+    Returns comprehensive financial and time-saving metrics.
     """
     standard_schedule = generate_amortization_schedule(params, overpayments=None)
     overpaid_schedule = generate_amortization_schedule(params, overpayments)

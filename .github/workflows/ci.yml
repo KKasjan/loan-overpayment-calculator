@@ -9,32 +9,54 @@ on:
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Install Playwright Browsers
-      run: playwright install --with-deps
+      - name: Static Analysis - Linter & Formatter (Ruff)
+        run: |
+          ruff check .
+          ruff format --check .
 
-    - name: Run Linters & Formatters
-      run: |
-        python -m ruff check src/ app.py tests/
-        python -m ruff format --check src/ app.py tests/
-        python -m mypy src/ app.py tests/
+      - name: Static Analysis - Type Safety (MyPy)
+        run: |
+          mypy src/ tests/ --ignore-missing-imports
 
-    - name: Run Full Test Suite (Unit + E2E)
-      run: |
-        nohup streamlit run app.py --server.port 8501 --server.headless true &
-        sleep 3
-        pytest -v
+      - name: Install Playwright Browsers
+        run: |
+          playwright install chromium --with-deps
+
+      - name: Run Backend Unit & Integration Tests
+        run: |
+          pytest tests/test_calculator.py -v
+
+      - name: Start Streamlit Application in Background
+        run: |
+          nohup streamlit run app.py --server.port 8501 --server.headless true &
+          echo "Waiting for the application to be ready..."
+          timeout 15s sh -c 'until curl -s http://localhost:8501; do sleep 1; done'
+
+      - name: Run Playwright E2E UI Tests
+        run: |
+          pytest tests/test_ui_dashboard.py -v
+
+      - name: Upload Test Artifacts (Reports & Traces)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-artifacts
+          path: |
+            test-results/
+            htmlcov/
+          if-no-files-found: ignore

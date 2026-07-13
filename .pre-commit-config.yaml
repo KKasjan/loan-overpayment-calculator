@@ -1,0 +1,36 @@
+# See https://pre-commit.com for more information
+
+# See https://pre-commit.com/hooks.html for more hooks
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        description: Trims trailing whitespace from all files.
+      - id: end-of-file-fixer
+        description: Ensures that a file is either empty, or ends with one newline.
+      - id: check-yaml
+        description: Attempts to load all yaml files to verify syntax.
+      - id: check-added-large-files
+        description: Prevents giant files from being committed.
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.4
+    hooks:
+      - id: ruff
+        name: Ruff Linter
+        description: Fast Python linter.
+        args: [ --fix ]
+      - id: ruff-format
+        name: Ruff Formatter
+        description: Fast Python formatter.
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.9.0
+    hooks:
+      - id: mypy
+        name: MyPy Type Checker
+        description: Static type checker for Python.
+        additional_dependencies: [ pandas-stubs, types-setuptools ]
+        args: [ --ignore-missing-imports ]
