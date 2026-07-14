@@ -15,7 +15,7 @@ class DashboardPage:
         self.app_title = page.get_by_role(
             "heading",
             name=re.compile(
-                "Advanced Loan Calculator",
+                r"Advanced Loan.*Calculator",
                 re.IGNORECASE,
             ),
         )
@@ -72,7 +72,9 @@ class DashboardPage:
         expect(strategy_select).to_be_visible()
         strategy_select.click()
 
-        self.page.get_by_text(strategy, exact=True).click()
+        self.page.get_by_test_id("stSelectboxVirtualDropdown").get_by_text(
+            strategy, exact=True
+        ).click()
 
 
 def test_streeamlit_dashboard_calculates_and_display_metrics(page: Page) -> None:
