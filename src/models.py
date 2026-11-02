@@ -1,105 +1,208 @@
-from dataclasses import dataclass
+"""Validated simulation inputs. Rates are fractions, money is Decimal PLN."""
+
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import List, Any
 
 
 class OverpaymentStrategy(Enum):
-    """Strategies for loan overpayments."""
-
     REDUCE_INSTALLMENT = "REDUCE_INSTALLMENT"
     SHORTEN_TERM = "SHORTEN_TERM"
     MIXED = "MIXED"
 
 
+class DayCount(Enum):
+    ACTUAL_ACTUAL = "ACT/ACT (365/366)"
+    ACTUAL_365 = "ACT/365"
+
+
+class InstallmentMethod(Enum):
+    MONTHLY = "Rata ze stopą miesięczną (roczna / 12)"
+    CALENDAR = "Rata kalendarzowa (rzeczywiste daty)"
+
+
+class ShorteningPolicy(Enum):
+    KEEP_PAYMENT = "Utrzymanie wysokości raty"
+    WHOLE_MONTHS = "Pełne miesiące i przeliczenie raty"
+
+
+def validate_money(value: Decimal, name: str, *, positive: bool = False) -> None:
+    if not isinstance(value, Decimal) or not value.is_finite():
+        raise ValueError(f"{name}: use a finite Decimal value.")
+    if value < 0 or (positive and value == 0):
+        raise ValueError(
+            f"{name}: amount must be {'positive' if positive else 'non-negative'}."
+        )
+    if value != value.quantize(Decimal("0.01")):
+        raise ValueError(f"{name}: use at most two decimal places.")
+
+
+def validate_rate(value: Decimal) -> None:
+    if not isinstance(value, Decimal) or not value.is_finite() or not 0 <= value <= 1:
+        raise ValueError("Interest rate must be a finite Decimal between 0 and 1.")
+
+
+def validate_date(value: date, name: str) -> None:
+    if type(value) is not date:
+        raise ValueError(f"{name}: use a calendar date.")
+
+
+@dataclass(frozen=True)
+class RateChange:
+    date: date
+    annual_interest_rate: Decimal
+
+    def __post_init__(self) -> None:
+        validate_date(self.date, "Rate change")
+        validate_rate(self.annual_interest_rate)
+
+
+@dataclass(frozen=True)
+class TermChange:
+    """Separate instruction applied after the installment on this contractual date."""
+
+    date: date
+    remaining_months: int
+
+    def __post_init__(self) -> None:
+        validate_date(self.date, "Term change")
+        if (
+            not isinstance(self.remaining_months, int)
+            or isinstance(self.remaining_months, bool)
+        ) or self.remaining_months < 1:
+            raise ValueError("New remaining term must be a positive integer.")
+
+
 @dataclass(frozen=True)
 class Overpayment:
-    """Represents a single or recurring overpayment."""
-
     amount: Decimal
     strategy: OverpaymentStrategy
-    date: date  # Exact date of the overpayment
-
+    date: date
     amount_shorten: Decimal | None = None
     amount_reduce: Decimal | None = None
 
     def __post_init__(self) -> None:
-        """
-        QA Validation Gate to ensure data consistency inside the model.
-        """
-        if self.amount <= 0:
-            raise ValueError("The overpayment amount must be greater than zero.")
-
+        validate_money(self.amount, "Overpayment", positive=True)
+        validate_date(self.date, "Overpayment")
+        if not isinstance(self.strategy, OverpaymentStrategy):
+            raise ValueError("Unknown overpayment strategy.")
         if self.strategy == OverpaymentStrategy.MIXED:
             if self.amount_shorten is None or self.amount_reduce is None:
-                raise ValueError(
-                    "Both amount_shorten and amount_reduce "
-                    "must be provided for MIXED strategy."
-                )
+                raise ValueError("Mixed strategy requires both allocation amounts.")
+            validate_money(self.amount_shorten, "Shortening allocation")
+            validate_money(self.amount_reduce, "Reduction allocation")
             if self.amount_shorten + self.amount_reduce != self.amount:
                 raise ValueError(
-                    f"Sum of split amounts ({self.amount_shorten} + "
-                    f"{self.amount_reduce}) must equal the total "
-                    f"overpayment amount ({self.amount})."
+                    "Mixed allocations must sum to the overpayment amount."
                 )
+        elif self.amount_shorten is not None or self.amount_reduce is not None:
+            raise ValueError("Split amounts are allowed only for Mixed strategy.")
 
 
-@dataclass
+@dataclass(frozen=True)
 class LoanParameters:
-    """Input parameters for a mortgage or consumer loan."""
-
-    amount: Decimal  # Amount outstanding
-    annual_interest_rate: Decimal  # Annual interest rate
-    start_date: date  # Credit launch date / simulation starting point
-    payment_day: int  # Day of the month on which the installment is paid
-    total_month: int  # Number of months remaining to pay
+    amount: Decimal
+    annual_interest_rate: Decimal
+    start_date: date  # Balance and accrued interest are supplied as of this date.
+    payment_day: int
+    total_month: int
+    first_payment_date: date | None = None
+    accrued_interest: Decimal = Decimal("0.00")
+    current_installment: Decimal | None = None
+    day_count: DayCount = DayCount.ACTUAL_ACTUAL
+    installment_method: InstallmentMethod = InstallmentMethod.MONTHLY
+    shortening_policy: ShorteningPolicy = ShorteningPolicy.KEEP_PAYMENT
+    rate_changes: tuple[RateChange, ...] = ()
+    term_changes: tuple[TermChange, ...] = ()
+    fixed_until: date | None = None
+    shift_collection_dates: bool = False
+    # Additional holidays allow the calendar to be reconciled with the bank.
+    additional_holidays: tuple[date, ...] = ()
+    upfront_cost: Decimal = Decimal("0.00")
+    monthly_cost: Decimal = Decimal("0.00")
+    annual_balance_insurance_rate: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
-        """QA validation gate protecting the mathematical
-        engine from invalid data.
-        """
-        if self.amount <= 0:
-            raise ValueError("The loan amount must be greater than zero.")
-        if self.annual_interest_rate < 0 or self.annual_interest_rate > 1:
-            raise ValueError("The annual percentage rate must be between 0% and 100%.")
-        if self.total_month <= 0:
-            raise ValueError("The loan period must be at least 1 month.")
-        if not (1 <= self.payment_day <= 28):
-            raise ValueError(
-                "The installment payment date must be between "
-                "1 and 28 (avoiding the February problem)"
+        validate_money(self.amount, "Outstanding principal", positive=True)
+        validate_rate(self.annual_interest_rate)
+        validate_date(self.start_date, "Simulation start")
+        if (
+            not isinstance(self.total_month, int) or isinstance(self.total_month, bool)
+        ) or not 1 <= self.total_month <= 420:
+            raise ValueError("Remaining term must be an integer from 1 to 420 months.")
+        if (
+            not isinstance(self.payment_day, int) or isinstance(self.payment_day, bool)
+        ) or not 1 <= self.payment_day <= 31:
+            raise ValueError("Payment day must be an integer from 1 to 31.")
+        if self.first_payment_date is not None:
+            validate_date(self.first_payment_date, "First payment")
+            if self.first_payment_date <= self.start_date:
+                raise ValueError("First payment must be after the simulation start.")
+        for value, name in [
+            (self.accrued_interest, "Accrued interest"),
+            (self.upfront_cost, "Upfront cost"),
+            (self.monthly_cost, "Monthly cost"),
+        ]:
+            validate_money(value, name)
+        if self.current_installment is not None:
+            validate_money(
+                self.current_installment, "Current installment", positive=True
             )
+        validate_rate(self.annual_balance_insurance_rate)
+        for convention, enum in [
+            (self.day_count, DayCount),
+            (self.installment_method, InstallmentMethod),
+            (self.shortening_policy, ShorteningPolicy),
+        ]:
+            if not isinstance(convention, enum):
+                raise ValueError("Unknown calculation convention.")
+        if self.fixed_until is not None:
+            validate_date(self.fixed_until, "Fixed rate end")
+        for change in self.rate_changes:
+            if change.date < self.start_date:
+                raise ValueError("Rate change precedes the simulation start.")
+            if self.fixed_until is not None and change.date < self.fixed_until:
+                raise ValueError(
+                    "Rate changes cannot occur within the fixed-rate period."
+                )
+        if len({c.date for c in self.rate_changes}) != len(self.rate_changes):
+            raise ValueError("Only one rate change is allowed on each date.")
+        if len({c.date for c in self.term_changes}) != len(self.term_changes):
+            raise ValueError("Only one term instruction is allowed on each date.")
+        for holiday in self.additional_holidays:
+            validate_date(holiday, "Holiday")
 
 
 @dataclass(frozen=True)
 class InstallmentDetails:
-    """A single entry in the repayment schedule for a given month."""
-
     installment_number: int
-    payment_date: date
-
-    # How many days have passed since the previous repayment
+    payment_date: date  # Contractual due date, or early final settlement date.
     days_in_period: int
-    total_installment: Decimal  # Total installment (principal + interest)
-    principal: Decimal  # Capital installment (the part that reduces the debt)
-    interest: Decimal  # Interest installment (profit for the bank)
-    overpayment: Decimal  # Optional overpayment amount this month
-
-    # Debt status AFTER this installment and overpayment have been paid
+    total_installment: Decimal
+    principal: Decimal
+    interest: Decimal
+    overpayment: Decimal
     remaining_balance: Decimal
+    collection_date: date | None = None
+    annual_interest_rate: Decimal = Decimal("0")
+    additional_cost: Decimal = Decimal("0.00")
+    contractual_months_remaining: int = 0
 
 
 @dataclass(frozen=True)
 class SimulationSummary:
-    """
-    Summary comparing the standard schedule against the overpaid schedule.
-    """
-
-    total_paid_standard: Decimal  # Total cost without overpayments
-    total_paid_with_overpayments: Decimal  # Total cost including overpayments
-    total_interest_saved: Decimal  # Net interest savings
-    months_saved: int  # Number of months shaved off the loan term
-    total_overpayments_made: Decimal  # Total amount of extra capital injected
-    standard_schedule: List[Any]  # Stores the full standard breakdown
-    overpayment_schedule: List[Any]  # Stores the full overpaid breakdown
+    total_paid_standard: Decimal
+    total_paid_with_overpayments: Decimal
+    total_interest_saved: Decimal
+    months_saved: int
+    total_overpayments_made: Decimal
+    standard_schedule: list[InstallmentDetails]
+    overpayment_schedule: list[InstallmentDetails]
+    total_interest_standard: Decimal = Decimal("0.00")
+    total_interest_overpaid: Decimal = Decimal("0.00")
+    total_cost_standard: Decimal = Decimal("0.00")
+    total_cost_overpaid: Decimal = Decimal("0.00")
+    requested_overpayments: Decimal = Decimal("0.00")
+    unused_overpayments: Decimal = Decimal("0.00")
+    warnings: tuple[str, ...] = field(default_factory=tuple)

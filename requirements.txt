@@ -1,13 +1,9 @@
-# Presentation & UI Layer
-streamlit>=1.35.0
+# Tested application and development versions (Python 3.12+).
+streamlit==1.65.0
 pandas==3.0.3
-
-# Testing Framework
 pytest==8.1.1
-playwright>=1.40.0
-pytest-playwright>=0.4.0
-
-# Code Quality & Static Analysis
+playwright==1.63.0
+pytest-playwright==0.10.0
 ruff==0.3.4
 mypy==1.9.0
-pandas-stubs
+pandas-stubs==3.0.5.260914

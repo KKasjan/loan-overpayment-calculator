@@ -4,3 +4,10 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 .vscode/
+.venv-*/
+.DS_Store
+.ruff_cache/
+test-results/
+playwright-report/
+.coverage
+htmlcov/
