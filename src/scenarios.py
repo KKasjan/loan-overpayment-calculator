@@ -7,6 +7,7 @@ from typing import Any
 from src.calculator import payment_dates
 from src.models import (
     LoanParameters,
+    AnnexInstruction,
     Overpayment,
     OverpaymentStrategy,
     RateChange,
@@ -114,3 +115,20 @@ def build_term_changes(rows: list[dict[str, Any]]) -> tuple[TermChange, ...]:
             raise ValueError("Remaining months must be an integer.")
         result.append(TermChange(date_input(row["date"]), int(months)))
     return tuple(result)
+
+
+def build_annexes(rows: list[dict[str, Any]]) -> tuple[AnnexInstruction, ...]:
+    def optional(value: Any) -> Decimal | None:
+        if value is None or str(value).strip() in ("", "nan", "<NA>"):
+            return None
+        return decimal_input(value)
+
+    return tuple(
+        AnnexInstruction(
+            date_input(row["date"]),
+            decimal_input(row["target_payment"]),
+            optional(row.get("minimum_payment")),
+            optional(row.get("maximum_payment")),
+        )
+        for row in rows
+    )

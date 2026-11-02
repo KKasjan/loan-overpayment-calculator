@@ -12,6 +12,7 @@ from src.models import (
     LoanParameters,
     Overpayment,
     OverpaymentStrategy,
+    RepaymentModel,
     ShorteningPolicy,
     SimulationSummary,
     validate_money,
@@ -296,6 +297,10 @@ def _remaining_count(
 def generate_amortization_schedule(
     params: LoanParameters, overpayments: list[Overpayment] | None = None
 ) -> list[InstallmentDetails]:
+    if params.repayment_model == RepaymentModel.ING:
+        from src.ing import simulate_ing
+
+        return simulate_ing(params, overpayments or []).schedule
     dates = payment_dates(params)
     ops = sorted(overpayments or [], key=lambda op: op.date)
     for op in ops:
@@ -450,7 +455,9 @@ def calculate_simulation_summary(
     params: LoanParameters, overpayments: list[Overpayment]
 ) -> SimulationSummary:
     # Formal term instructions belong only to the accelerated scenario.
-    standard = generate_amortization_schedule(replace(params, term_changes=()), [])
+    standard = generate_amortization_schedule(
+        replace(params, term_changes=(), annexes=()), []
+    )
     overpaid = generate_amortization_schedule(params, overpayments)
     standard_interest = sum((r.interest for r in standard), ZERO)
     overpaid_interest = sum((r.interest for r in overpaid), ZERO)
@@ -469,7 +476,10 @@ def calculate_simulation_summary(
         warnings.append(
             "The simulation extends beyond the fixed-rate period; supplied future rates are scenarios, not forecasts."
         )
-    if params.installment_method == InstallmentMethod.CALENDAR:
+    if (
+        params.installment_method == InstallmentMethod.CALENDAR
+        and params.repayment_model == RepaymentModel.GENERAL
+    ):
         warnings.append(
             "Calendar annuity has an interest-coverage floor; at extreme rates this may shorten the projected term even without overpayments."
         )

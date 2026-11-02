@@ -12,6 +12,11 @@ class OverpaymentStrategy(Enum):
     MIXED = "MIXED"
 
 
+class RepaymentModel(Enum):
+    GENERAL = "Ogólny — dotychczasowe strategie"
+    ING = "ING — nadpłata i osobny aneks (model do weryfikacji)"
+
+
 class DayCount(Enum):
     ACTUAL_ACTUAL = "ACT/ACT (365/366)"
     ACTUAL_365 = "ACT/365"
@@ -75,6 +80,33 @@ class TermChange:
 
 
 @dataclass(frozen=True)
+class AnnexInstruction:
+    """Effective date and payment ceiling; bank bounds are supplied, never inferred."""
+
+    date: date
+    target_payment: Decimal
+    minimum_payment: Decimal | None = None
+    maximum_payment: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        validate_date(self.date, "Annex")
+        validate_money(self.target_payment, "Target payment", positive=True)
+        for value in (self.minimum_payment, self.maximum_payment):
+            if value is not None:
+                validate_money(value, "Bank payment bound", positive=True)
+        if (
+            self.minimum_payment is not None
+            and self.target_payment < self.minimum_payment
+        ):
+            raise ValueError("Wybrana rata jest poniżej podanego minimum ING.")
+        if (
+            self.maximum_payment is not None
+            and self.target_payment > self.maximum_payment
+        ):
+            raise ValueError("Wybrana rata przekracza podane maksimum ING.")
+
+
+@dataclass(frozen=True)
 class Overpayment:
     amount: Decimal
     strategy: OverpaymentStrategy
@@ -107,6 +139,8 @@ class LoanParameters:
     start_date: date  # Balance and accrued interest are supplied as of this date.
     payment_day: int
     total_month: int
+    repayment_model: RepaymentModel = RepaymentModel.GENERAL
+    annexes: tuple[AnnexInstruction, ...] = ()
     first_payment_date: date | None = None
     accrued_interest: Decimal = Decimal("0.00")
     current_installment: Decimal | None = None
@@ -170,6 +204,17 @@ class LoanParameters:
             raise ValueError("Only one rate change is allowed on each date.")
         if len({c.date for c in self.term_changes}) != len(self.term_changes):
             raise ValueError("Only one term instruction is allowed on each date.")
+        if not isinstance(self.repayment_model, RepaymentModel):
+            raise ValueError("Unknown repayment model.")
+        if self.repayment_model == RepaymentModel.ING:
+            if self.installment_method != InstallmentMethod.CALENDAR:
+                raise ValueError("Model ING wymaga raty kalendarzowej.")
+            if self.term_changes:
+                raise ValueError("W modelu ING użyj aneksu z docelową ratą.")
+        elif self.annexes:
+            raise ValueError("Aneksy z docelową ratą wymagają modelu ING.")
+        if len({a.date for a in self.annexes}) != len(self.annexes):
+            raise ValueError("Dopuszczalny jest jeden aneks danego dnia.")
         for holiday in self.additional_holidays:
             validate_date(holiday, "Holiday")
 

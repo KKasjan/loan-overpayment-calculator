@@ -5,6 +5,21 @@ Stan wdrożenia poprawek: 2 listopada 2026. Dokument zachowuje numerację 25 pun
 „Wdrożone” oznacza zmianę programu i opisany zakres sprawdzenia. Nie oznacza potwierdzonej zgodności z indywidualnym kredytem ING. Przy każdym punkcie rozdzielono lokalizację implementacji, zmianę zachowania i testy lub inne kontrole. Odwołania prowadzą do plików w bieżącym katalogu projektu oraz do zweryfikowanych linii funkcji, klas lub fragmentów formularza. Po dalszej przebudowie kodu numery linii mogą się zmienić; nazwy funkcji pozwalają ponownie odnaleźć implementację.
 
 
+## Aktualizacja: model nadpłaty i aneksu ING
+
+Wdrożenie na gałęzi `stage`; bazowa wersja audytu: commit `0d9ab43`. Poniższe 25 punktów opisuje historyczną naprawę modelu ogólnego. Model ING ma osobną implementację; nie należy przypisywać mu ograniczenia „aneks tylko w terminie raty” ani automatycznych strategii SHORTEN/MIXED.
+
+- **Modele i walidacja:** `src/models.py` — `RepaymentModel`, `AnnexInstruction`, `LoanParameters.annexes`. Limit raty i opcjonalne widełki pochodzą od użytkownika. Model ING nie przyjmuje starych `TermChange` ani strategii skracania wewnątrz nadpłaty.
+- **Chronologia i odsetki:** `src/ing.py` — `simulate_ing`, `LoanState`, `EventResult`. Osobne daty nadpłat i aneksów; grupowanie nadpłat tego samego dnia; dzienne odsetki proste; rozliczenie po całkowitej spłacie; kontrola kapitału i przepływów. Daty operacji oznaczają skuteczne księgowanie, nie wysłanie przelewu.
+- **Pełne miesiące i rata:** `src/ing.py` — `quote_payment`, `select_annex`. Minimalna rata w groszach rozliczająca harmonogram, wybór najkrótszego skróconego okresu mieszczącego się w limicie i podanych widełkach. Limit nie oznacza wymuszenia identycznej raty. Przyszłe stopy nie są antycypowane.
+- **Odwrotne obliczenie nadpłaty:** `src/ing.py` — `required_overpayment`, `OverpaymentQuote`. Wyszukiwanie minimalnej dodatkowej kwoty co do grosza, uwzględnienie wcześniejszych operacji, odsetek naliczonych i raty przypadającej w dniu wyceny. Założenie: nadpłata i nowy aneks tego samego dnia.
+- **Porównanie:** `src/calculator.py` — wybór silnika w `generate_amortization_schedule`; scenariusz bez nadpłat nie zawiera aneksów. `src/scenarios.py` — `build_annexes` parsuje daty, limity i puste opcjonalne widełki.
+- **Interfejs:** `app.py` — domyślny model ING, dokładna data jednorazowej nadpłaty, edytor aneksów, tabela rat przed/po zdarzeniu, efekt aneksów względem samych nadpłat, formularz wymaganej nadpłaty. Stare strategie dostępne wyłącznie w modelu ogólnym.
+- **Sprawdzenie:** `tests/test_ing.py` — niezależne przypadki zerowej stopy i ręcznie liczonych odsetek, minimalność co do grosza, kilka zdarzeń, aneksy między ratami i w terminie raty, limit bankowy, pełna spłata, rok przestępny, scenariusze stóp, długi kredyt i uzgodnienie przepływów. `tests/test_app.py` — ścieżki nowego formularza. `tests/test_ui_dashboard.py` — rzeczywista przeglądarka, m.in. wycena 1000 zł przy 12000 zł kapitału, zerowej stopie i skróceniu 12 → 11 rat z limitem 1000 zł.
+
+**Do potwierdzenia przed merge do `main`:** dokładny algorytm ING wyliczania rat i pełnych miesięcy, data skutecznego księgowania, zasady granic dni, zaokrągleń i zmiany harmonogramu, widełki oraz porównanie z indywidualnymi harmonogramami. Nie oznaczamy tego etapu jako zakończonego na podstawie samych testów syntetycznych. Szczegóły: `ING_WORK_PLAN.md`.
+
+
 ## 1. Jedna nadpłata przy wybranej racie
 
 **Status:** Wdrożone.
@@ -565,3 +580,7 @@ Stan wdrożenia poprawek: 2 listopada 2026. Dokument zachowuje numerację 25 pun
 Pozostaje uzgodnienie na danych użytkownika: zanonimizowana umowa określająca konwencję roku, granice dni, zaokrąglenia, kolejność księgowania i opłaty; stan kredytu na konkretną datę; harmonogram przed nadpłatą i po niej oraz po zmianie okresu. Należy porównać kapitał, odsetki, ratę, datę końca i wyjaśnić wszystkie różnice groszowe. Publiczne informacje banku i przejście testów programu nie wystarczają do potwierdzenia zgodności z konkretną umową.
 
 Dokumentowane założenia obejmują m.in. kolejność rata–nadpłata w dniu raty, rozliczenie pełnej spłaty z odsetkami w dniu nadpłaty, przeliczenie pierwszej raty obejmującej nową stopę i oddzielenie pobrania od umownego naliczania odsetek. Do czasu porównania z bankiem są to konwencje symulacji.
+
+## Weryfikacja po dodaniu modelu ING
+
+2 listopada 2026: 103 testy backendu i AppTest oraz 3 testy przeglądarkowe Chromium przeszły. Ruff, formatowanie, MyPy i kontrola białych znaków również przeszły. Automatyczne kontrole GitHub Actions rozszerzono o gałąź `stage`. Odbiór na indywidualnym harmonogramie ING i merge do `main` pozostają otwarte.

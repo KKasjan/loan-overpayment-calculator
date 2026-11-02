@@ -16,6 +16,24 @@ Otwórz http://127.0.0.1:8502. Istniejące lokalne środowisko `.venv-1` można 
 
 `requirements.txt` przypina wersje zależności bezpośrednich, a `requirements.lock.txt` zapisuje wersje całego testowanego środowiska. Ponowna instalacja na innym systemie lub Pythonie wymaga zgodnych binarnych pakietów.
 
+## Nowy model ING — gałąź `stage`
+
+Domyślnie aplikacja wybiera **ING — nadpłata i osobny aneks (model do weryfikacji)**. Dotychczasowe strategie pozostają w modelu **Ogólny**. `main` pozostaje wersją odniesienia; punkt startowy zmian zapisano w commicie `0d9ab43`.
+
+1. Wprowadź stan kredytu: saldo, datę tego salda, pozostałą liczbę rat, bieżącą stopę i opcjonalnie ratę z banku oraz już naliczone odsetki.
+2. Wybierz nadpłatę. Przy jednorazowej możesz wskazać dokładną datę zaksięgowania; nieregularne nadpłaty mają własne daty. Każda nadpłata w modelu ING obniża ratę, bez automatycznego skrócenia umowy.
+3. Opcjonalnie wpisz aneks: datę wejścia w życie i limit raty. Program wybiera najkrótszy pełny okres, dla którego wyliczona rata nie przekracza limitu. Wynik może być niższy od wybranego limitu: to jawna konwencja modelu, nie potwierdzona reguła odwzorowania suwaka ING. Opcjonalne minimum/maksimum wpisz z banku. Przy braku możliwości skrócenia program zgłasza błąd.
+4. Tabela zdarzeń pokazuje ratę przed i po nadpłacie oraz przed i po aneksie. Osobne porównanie pokazuje dodatkowy efekt aneksów względem samych nadpłat.
+5. W formularzu **Ile nadpłacić…** podaj datę, liczbę miesięcy skrócenia i limit raty. Wynik to minimalna **dodatkowa** nadpłata, przy aneksie tego samego dnia. Wcześniejsze wpisane operacje, również nadpłaty z dnia wyceny, są uwzględnione; przyszłe nie finansują celu. Wynik 0 oznacza, że cel nie wymaga dodatkowej wpłaty. Wycena nie dodaje automatycznie zdarzeń do harmonogramu. Aneks już wpisany na dzień wyceny trzeba usunąć przed wyceną.
+
+Model ING nalicza odsetki proste po kolejnych datach księgowania. Kolejność tego samego dnia: rata umowna → zmiana stopy → nadpłata → aneks. Aneks może obowiązywać między ratami. Naliczonych odsetek nie dopisujemy do kapitału: rozliczamy je w najbliższej racie. Nadpłata całego kapitału wymaga też zapłaty naliczonych odsetek tego dnia. Przyszłe stopy nie są używane do wyceny dzisiejszej raty; przeliczenie następuje w dniu zmiany stopy.
+
+Rata kalendarzowa jest wyszukiwana w groszach: ma pokrywać odsetki i spłacić saldo najpóźniej w ostatnim terminie, bez większej raty końcowej. Ostatnia rata może być mniejsza. W szczególnych przypadkach bardzo małego salda spłata może nastąpić wcześniej niż umowny termin. Model ogólny zachowuje swój wcześniejszy algorytm i jego ograniczenia opisane poniżej.
+
+**Nie potwierdzono jeszcze zgodności kwot z konkretnym kredytem ING.** Do kalibracji potrzebujemy salda i oprocentowania przed nadpłatą, liczby pozostałych rat, dat księgowania i obowiązywania aneksu oraz raty po samej nadpłacie. Nie wyznaczamy automatycznie widełek ani uprawnień do aneksu. Daty pobrania po świętach mają charakter informacyjny; nie przesuwają okresu odsetkowego. Aktualna rata z banku pozostaje do pierwszego przeliczenia; nie służy do odgadywania salda lub stopy.
+
+Plan i kryteria zakończenia: [ING_WORK_PLAN.md](ING_WORK_PLAN.md). Dane indywidualnego kredytu przechowuj w ignorowanym katalogu `local_data/`, poza GitHubem.
+
 ## Dane istniejącego kredytu
 
 Wprowadź kapitał na wybraną datę, pozostałą liczbę rat, oprocentowanie i dzień raty. Opcjonalnie podaj dokładny termin pierwszej raty, jej bieżącą wysokość z banku oraz odsetki naliczone PRZED datą stanu. Odsetki od daty stanu program dolicza samodzielnie; nie wpisuj ich dwukrotnie.
@@ -41,16 +59,16 @@ Obsługiwane są nadpłaty regularne przy terminach rat, pojedyncza nadpłata pr
 
 Przy wielu wpłatach silnik rozlicza je chronologicznie. Nadpłaty tej samej daty są grupowane, a niewystarczający kapitał dzielony proporcjonalnie między dyspozycje. Po spłacie kapitału przyszłe wpłaty nie są pobierane. Podsumowanie pokazuje planowane, wykorzystane i niewykorzystane kwoty. Nadpłaty poza pierwotnym zakresem dat są błędem wejścia, a nie cicho pomijanym zdarzeniem.
 
-Strategie:
+Strategie **modelu ogólnego**:
 
 - **Obniżenie raty**: część nadpłaty obniża następną ratę; nie kasuje wcześniej osiągniętego skrócenia.
 - **Skrócenie okresu / Keep installment**: rata jest utrzymywana, a faktyczna spłata może nastąpić wcześniej. To symulacja stałego budżetu, nie automatyczna zmiana umowy ING.
 - **Skrócenie okresu / Whole months**: pozostały okres jest zaokrąglany w dół do pełnych miesięcy, a rata przeliczana. Rata może wzrosnąć. Dostępność i warunki takiej zmiany trzeba ustalić z bankiem.
 - **Mixed**: jawny podział kwoty na powyższe cele. Przy kilku strategiach w jednym okresie obie części są sumowane; nie obowiązuje zasada „ostatnia strategia wygrywa”.
 
-Osobna tabela **dyspozycji skrócenia umowy** pozwala wpisać nową liczbę rat po wybranym umownym terminie płatności. Daty obowiązywania dyspozycji są jawne; wydłużenie kredytu nie jest obsługiwane. Standardowy scenariusz porównawczy nie uwzględnia tych instrukcji.
+W modelu ogólnym osobna tabela **dyspozycji skrócenia umowy** pozwala wpisać nową liczbę rat po wybranym umownym terminie płatności. Daty obowiązywania dyspozycji są jawne; wydłużenie kredytu nie jest obsługiwane. Standardowy scenariusz porównawczy nie uwzględnia tych instrukcji.
 
-Operacje w dniu raty mają ustaloną kolejność: rata, nadpłata, przeliczenie na kolejny okres, dyspozycja nowego okresu. Nadpłaty między ratami zmniejszają odsetki od swojej rzeczywistej daty; zmiana raty dotyczy następnego okresu. Całkowitą spłatę kapitału i odsetek rozliczamy w dniu nadpłaty. Te reguły wymagają uzgodnienia z księgowaniem konkretnego kredytu ING.
+W modelu ogólnym operacje w dniu raty mają ustaloną kolejność: rata, nadpłata, przeliczenie na kolejny okres, dyspozycja nowego okresu. Nadpłaty między ratami zmniejszają odsetki od swojej rzeczywistej daty; zmiana raty dotyczy następnego okresu. Całkowitą spłatę kapitału i odsetek rozliczamy w dniu nadpłaty. Te reguły wymagają uzgodnienia z księgowaniem konkretnego kredytu ING.
 
 ## Oprocentowanie okresowo stałe i scenariusze
 

@@ -1,9 +1,9 @@
 name: Calculator checks
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, stage]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, stage]
 jobs:
   checks:
     runs-on: ubuntu-latest

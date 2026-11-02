@@ -1,7 +1,7 @@
 """Streamlit interface; financial scenario construction lives in src.scenarios."""
 
 from calendar import monthrange
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import date
 from decimal import Decimal
 
@@ -13,6 +13,7 @@ from src.models import (
     DayCount,
     InstallmentMethod,
     LoanParameters,
+    RepaymentModel,
     Overpayment,
     OverpaymentStrategy,
     ShorteningPolicy,
@@ -20,6 +21,7 @@ from src.models import (
 )
 from src.scenarios import (
     build_overpayments,
+    build_annexes,
     build_rate_changes,
     build_term_changes,
     decimal_input,
@@ -37,6 +39,15 @@ st.caption(
 )
 
 st.sidebar.header("Parametry kredytu")
+repayment_model = st.sidebar.selectbox(
+    "Model spłaty",
+    list(RepaymentModel),
+    index=1,
+    format_func=lambda x: x.value,
+    key="repayment_model",
+)
+is_ing = repayment_model == RepaymentModel.ING
+
 amount = st.sidebar.number_input(
     "Pozostały kapitał (PLN)", min_value=0.01, value=300000.0, step=1000.0, key="amount"
 )
@@ -72,9 +83,14 @@ op_amount = Decimal("0")
 shorten = reduce = None
 op_month = 1
 if mode in ("regular", "single"):
-    strategy = strategies[
-        st.sidebar.selectbox("Strategia", list(strategies), key="strategy")
-    ]
+    if not is_ing:
+        strategy = strategies[
+            st.sidebar.selectbox("Strategia", list(strategies), key="strategy")
+        ]
+    else:
+        st.sidebar.caption(
+            "Każda nadpłata obniża ratę. Skrócenie wymaga osobnego aneksu."
+        )
     if mode == "single":
         if "op_month" not in st.session_state:
             st.session_state.op_month = min(12, int(months))
@@ -121,6 +137,16 @@ if mode in ("regular", "single"):
     if op_amount == 0:
         st.sidebar.info("Kwota 0 zł oznacza brak dodatkowych wpłat.")
 
+single_date = None
+if (
+    is_ing
+    and mode == "single"
+    and st.sidebar.checkbox("Podaj datę zaksięgowania nadpłaty", key="exact_op_date")
+):
+    single_date = st.sidebar.date_input(
+        "Data zaksięgowania nadpłaty", value=date.today(), key="single_date"
+    )
+
 st.sidebar.header("Stan kredytu na dzień")
 start = st.sidebar.date_input(
     "Data stanu kapitału", value=date.today(), key="start_date"
@@ -152,27 +178,31 @@ if st.sidebar.checkbox("Użyj aktualnej raty z banku", key="use_current"):
     )
 
 st.sidebar.header("Założenia obliczeń")
-method = st.sidebar.selectbox(
-    "Sposób wyliczania raty",
-    list(InstallmentMethod),
-    index=1,
-    format_func=lambda x: x.value,
-    key="method",
-)
+if is_ing:
+    method = InstallmentMethod.CALENDAR
+    policy = ShorteningPolicy.KEEP_PAYMENT
+    st.sidebar.caption(
+        "Rata kalendarzowa; model wymaga porównania z harmonogramem ING."
+    )
+else:
+    method = st.sidebar.selectbox(
+        "Sposób wyliczania raty",
+        list(InstallmentMethod),
+        index=1,
+        format_func=lambda x: x.value,
+        key="method",
+    )
+    policy = st.sidebar.selectbox(
+        "Sposób skracania okresu",
+        list(ShorteningPolicy),
+        format_func=lambda x: x.value,
+        key="policy",
+    )
 day_count = st.sidebar.selectbox(
     "Konwencja naliczania odsetek",
     list(DayCount),
     format_func=lambda x: x.value,
     key="day_count",
-)
-policy = st.sidebar.selectbox(
-    "Sposób skracania okresu",
-    list(ShorteningPolicy),
-    format_func=lambda x: x.value,
-    key="policy",
-)
-st.sidebar.caption(
-    "Keep installment: zachowaj ratę. Whole months: zaokrąglij okres w dół i przelicz ratę; może wzrosnąć. To symulacje, nie automatyczna dyspozycja ING."
 )
 shift = st.sidebar.checkbox(
     "Pokaż pobranie po niedzielach i świętach w Polsce", key="shift_dates"
@@ -210,34 +240,73 @@ with st.expander("Zmiany oprocentowania"):
         },
         alt="Daty zmian i roczne oprocentowanie w procentach",
     )
-with st.expander("Oddzielne dyspozycje skrócenia umowy"):
-    st.caption(
-        "Data musi być umownym terminem raty; podaj liczbę rat pozostałych PO tej racie. Możliwe warunki i opłaty sprawdź w ING."
-    )
-    term_rows = st.data_editor(
-        pd.DataFrame(
-            {
-                "date": pd.Series(dtype="str"),
-                "remaining_months": pd.Series(dtype="int64"),
-            }
-        ),
-        num_rows="dynamic",
-        key="term_editor",
-        column_config={
-            "date": st.column_config.TextColumn(
-                "Data dyspozycji (YYYY-MM-DD)", required=True
+annex_rows = pd.DataFrame()
+term_rows = pd.DataFrame()
+if is_ing:
+    with st.expander("Aneksy — wybór raty i skrócenie okresu"):
+        st.caption(
+            "Podaj datę wejścia aneksu w życie i limit raty kapitałowo-odsetkowej. "
+            "Wybieramy najkrótszy pełny okres z ratą nieprzekraczającą limitu; wyliczona rata może być niższa. "
+            "Opcjonalne minimum i maksimum przepisz z ING. Nie wyznaczamy bankowych widełek ani uprawnienia do bezpłatnego aneksu."
+        )
+        annex_rows = st.data_editor(
+            pd.DataFrame(
+                {
+                    "date": pd.Series(dtype="str"),
+                    "target_payment": pd.Series(dtype="float64"),
+                    "minimum_payment": pd.Series(dtype="float64"),
+                    "maximum_payment": pd.Series(dtype="float64"),
+                }
             ),
-            "remaining_months": st.column_config.NumberColumn(
-                "Pozostałe raty", min_value=1, max_value=420, step=1, required=True
+            num_rows="dynamic",
+            key="annex_editor",
+            column_config={
+                "date": st.column_config.TextColumn(
+                    "Wejście w życie (YYYY-MM-DD)", required=True
+                ),
+                "target_payment": st.column_config.NumberColumn(
+                    "Limit raty (PLN)", min_value=0.01, required=True
+                ),
+                "minimum_payment": st.column_config.NumberColumn(
+                    "Minimum ING (opcjonalne)", min_value=0.01
+                ),
+                "maximum_payment": st.column_config.NumberColumn(
+                    "Maksimum ING (opcjonalne)", min_value=0.01
+                ),
+            },
+            alt="Daty aneksów, limity rat i opcjonalne widełki ING",
+        )
+else:
+    with st.expander("Oddzielne dyspozycje skrócenia umowy"):
+        st.caption(
+            "Data musi być umownym terminem raty; podaj liczbę rat pozostałych PO tej racie. Możliwe warunki i opłaty sprawdź w ING."
+        )
+        term_rows = st.data_editor(
+            pd.DataFrame(
+                {
+                    "date": pd.Series(dtype="str"),
+                    "remaining_months": pd.Series(dtype="int64"),
+                }
             ),
-        },
-        alt="Daty dyspozycji i nowa liczba rat",
-    )
+            num_rows="dynamic",
+            key="term_editor",
+            column_config={
+                "date": st.column_config.TextColumn(
+                    "Data dyspozycji (YYYY-MM-DD)", required=True
+                ),
+                "remaining_months": st.column_config.NumberColumn(
+                    "Pozostałe raty", min_value=1, max_value=420, step=1, required=True
+                ),
+            },
+            alt="Daty dyspozycji i nowa liczba rat",
+        )
 irregular_rows = pd.DataFrame()
 if mode == "irregular":
     st.subheader("Lista nieregularnych nadpłat")
     st.caption(
-        "Podaj daty YYYY-MM-DD i wybierz strategię. Dla Mixed uzupełnij obie części nadpłaty."
+        "Daty oznaczają zaksięgowanie nadpłaty na kapitale. W modelu ING wybierz Obniżenie raty; aneksy wpisz osobno."
+        if is_ing
+        else "Podaj daty YYYY-MM-DD i wybierz strategię. Dla Mixed uzupełnij obie części nadpłaty."
     )
     irregular_rows = st.data_editor(
         pd.DataFrame(
@@ -263,7 +332,9 @@ if mode == "irregular":
                 "Na obniżenie raty (PLN)", min_value=0
             ),
             "strategy": st.column_config.SelectboxColumn(
-                "Strategia", options=list(strategies), required=True
+                "Strategia",
+                options=["Obniżenie raty"] if is_ing else list(strategies),
+                required=True,
             ),
         },
         alt="Daty, kwoty i podział nieregularnych nadpłat",
@@ -299,6 +370,13 @@ def run_simulation(
 
 try:
     params = LoanParameters(
+        repayment_model=repayment_model,
+        annexes=build_annexes(
+            [
+                {str(k): v for k, v in row.items()}
+                for row in annex_rows.to_dict("records")
+            ]
+        ),
         amount=decimal_input(amount),
         annual_interest_rate=percent_input(rate),
         start_date=start,
@@ -313,7 +391,12 @@ try:
         shift_collection_dates=shift,
         fixed_until=fixed_until,
         rate_changes=build_rate_changes(rate_rows.to_dict("records")),
-        term_changes=build_term_changes(term_rows.to_dict("records")),
+        term_changes=build_term_changes(
+            [
+                {str(k): v for k, v in row.items()}
+                for row in term_rows.to_dict("records")
+            ]
+        ),
         upfront_cost=decimal_input(upfront),
         monthly_cost=decimal_input(monthly),
         annual_balance_insurance_rate=percent_input(insurance),
@@ -331,10 +414,111 @@ try:
             for row in irregular_rows.to_dict("records")
         ],
     )
+    if single_date is not None and op_amount > 0:
+        ops = [
+            Overpayment(op_amount, OverpaymentStrategy.REDUCE_INSTALLMENT, single_date)
+        ]
     summary = run_simulation(params, ops)
 except (ValueError, ArithmeticError, KeyError, TypeError) as error:
     st.error(f"Sprawdź dane wejściowe: {error}")
     st.stop()
+
+if is_ing:
+    from src.ing import required_overpayment, simulate_ing
+
+    st.subheader("Nadpłata i osobny aneks")
+    st.caption(
+        "W dniu raty kolejność to: rata, zmiana stopy, nadpłata, aneks. Odsetki naliczamy codziennie, bez kapitalizacji."
+    )
+
+    @st.cache_data(max_entries=128, ttl=3600)
+    def ing_events(params: LoanParameters, ops: list[Overpayment]):
+        return simulate_ing(params, ops).events
+
+    event_results = ing_events(params, ops)
+    if event_results:
+        event_frame = pd.DataFrame([asdict(e) for e in event_results])
+        for col in [
+            "amount",
+            "balance",
+            "payment_before",
+            "payment_after",
+            "target_payment",
+        ]:
+            event_frame[col] = pd.to_numeric(event_frame[col])
+        st.dataframe(
+            event_frame,
+            hide_index=True,
+            key="ing_events",
+            alt="Historia obniżenia raty i późniejszych aneksów",
+            column_config={
+                "date": "Data",
+                "kind": "Zdarzenie",
+                "amount": "Nadpłata (PLN)",
+                "balance": "Kapitał",
+                "payment_before": "Rata przed",
+                "payment_after": "Rata po",
+                "remaining_months": "Pozostałe raty",
+                "maturity": "Koniec umowy",
+                "target_payment": "Limit raty",
+            },
+        )
+    if params.annexes:
+        without_annex = run_simulation(replace(params, annexes=()), ops)
+        st.caption(
+            f"Po samych nadpłatach: {len(without_annex.overpayment_schedule)} płatności, "
+            f"koniec {without_annex.overpayment_schedule[-1].payment_date}. "
+            f"Dodatkowa oszczędność odsetek po aneksach: "
+            f"{without_annex.total_interest_overpaid - summary.total_interest_overpaid:,.2f} PLN."
+        )
+    with st.expander(
+        "Ile nadpłacić, aby skrócić okres bez zwiększania raty?", expanded=True
+    ):
+        st.caption(
+            "Wycena dodatkowej nadpłaty uwzględnia wcześniejsze wpisane zdarzenia. Zakłada aneks tego samego dnia; nie dodaje automatycznie operacji do harmonogramu. Limit dotyczy rat kapitałowo-odsetkowych, bez ubezpieczeń i opłat."
+        )
+        with st.form("required_overpayment_form"):
+            goal_date = st.date_input(
+                "Planowana data zaksięgowania i aneksu", value=start, key="goal_date"
+            )
+            goal_months = st.number_input(
+                "O ile miesięcy skrócić okres",
+                min_value=1,
+                max_value=419,
+                value=1,
+                key="goal_months",
+            )
+            goal_payment = st.number_input(
+                "Maksymalna rata po aneksie (PLN)",
+                min_value=0.01,
+                value=float(
+                    current_payment or summary.standard_schedule[0].total_installment
+                ),
+                key="goal_payment",
+            )
+            find_goal = st.form_submit_button("Oblicz wymaganą nadpłatę")
+        if find_goal:
+            try:
+                goal = required_overpayment(
+                    params,
+                    goal_date,
+                    int(goal_months),
+                    decimal_input(goal_payment),
+                    ops,
+                )
+                st.metric(
+                    "Minimalna dodatkowa nadpłata", f"{goal.overpayment:,.2f} PLN"
+                )
+                st.markdown(
+                    f"Po samej nadpłacie rata: **{goal.payment_after_overpayment:,.2f} PLN**. "
+                    f"Po aneksie: **{goal.payment_after_annex:,.2f} PLN**, "
+                    f"pozostałe raty: **{goal.remaining_months}**, koniec: **{goal.maturity}**."
+                )
+                st.caption(
+                    "To wycena przy stopie obowiązującej w dacie operacji. Późniejsze zmiany stopy mogą zmienić ratę. Przed akceptacją aneksu porównaj dostępny okres i widełki w ING."
+                )
+            except (ValueError, ArithmeticError) as error:
+                st.error(f"Nie można wyznaczyć nadpłaty: {error}")
 
 st.subheader("Porównanie przyszłych płatności")
 a, b, c = st.columns(3)
@@ -356,8 +540,8 @@ st.caption(
 with st.expander("Założenia i ograniczenia symulacji", expanded=True):
     st.markdown(
         "Nadpłata w dacie początku obniża kapitał od tej daty. W dniu raty najpierw rozliczamy ratę, potem nadpłatę. "
-        "Po nadpłacie przeliczamy ratę na kolejny termin. Zmiana stopy przelicza pierwszą ratę obejmującą nową stopę. Całkowitą spłatę kapitału i należnych odsetek rozliczamy w dniu nadpłaty. "
-        "Rata kalendarzowa ma minimum pokrywające odsetki w najdłuższym okresie; przy skrajnych stopach może to przyspieszyć spłatę także bez nadpłat. Odsetki liczymy od dat umownych; przesunięcie daty pobrania nie zmienia odsetek. "
+        "W modelu ING po nadpłacie przeliczamy ratę z uwzględnieniem już naliczonych odsetek na najbliższy termin. W trybie ogólnym na kolejny termin. Zmiana stopy przelicza pierwszą ratę obejmującą nową stopę. Całkowitą spłatę kapitału i należnych odsetek rozliczamy w dniu nadpłaty. "
+        "W trybie ogólnym rata kalendarzowa ma minimum pokrywające odsetki najdłuższego okresu. W modelu ING szukamy minimalnej raty w groszach rozliczającej saldo i odsetki do końca okresu, z końcową ratą nieprzekraczającą tego limitu. Nie jest to potwierdzony algorytm banku. Odsetki liczymy od dat umownych; przesunięcie daty pobrania nie zmienia odsetek. "
         "ING standardowo obniża ratę po nadpłacie, a skrócenie umowy jest osobną dyspozycją. "
         "[Zasady obsługi kredytu w ING](https://www.ing.pl/indywidualni/kredyty-i-pozyczki/kredyt-hipoteczny/mam-juz-kredyt). "
         "Nie potwierdzono zgodności z Twoją konkretną umową. Transze, karencja, zaległości i przewalutowanie nie są obsługiwane."

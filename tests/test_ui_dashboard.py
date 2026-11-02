@@ -61,3 +61,26 @@ def test_dashboard_short_term_does_not_crash(page: Page, app_url: str) -> None:
         page.get_by_role("spinbutton", name="Numer raty z nadpłatą", exact=True)
     ).to_have_value("3")
     expect(page.get_by_test_id("stException")).to_have_count(0)
+
+
+def test_ing_inverse_quote_in_browser(page: Page, app_url: str) -> None:
+    DashboardPage(page).load(app_url)
+    for label, value in [
+        ("Pozostały kapitał (PLN)", "12000"),
+        ("Oprocentowanie roczne (%)", "0"),
+        ("Pozostała liczba rat", "12"),
+    ]:
+        field = page.get_by_role("spinbutton", name=label, exact=True)
+        field.fill(value)
+        field.press("Enter")
+    target = page.get_by_role(
+        "spinbutton", name="Maksymalna rata po aneksie (PLN)", exact=True
+    )
+    target.fill("1000")
+    page.get_by_role("button", name="Oblicz wymaganą nadpłatę", exact=True).click()
+    metric = page.get_by_test_id("stMetric").filter(
+        has_text="Minimalna dodatkowa nadpłata"
+    )
+    expect(metric).to_contain_text("1,000.00 PLN", timeout=20000)
+    expect(page.get_by_test_id("stException")).to_have_count(0)
+    page.screenshot(path="test-results/ing-planner.png", full_page=True)

@@ -10,6 +10,11 @@ def app_start() -> AppTest:
     app = AppTest.from_file(str(APP_PATH)).run()
     assert not app.exception
     assert not app.error
+    from src.models import RepaymentModel
+
+    app.selectbox(key="repayment_model").set_value(RepaymentModel.GENERAL).run()
+    assert not app.exception
+    assert not app.error
     return app
 
 
@@ -132,3 +137,66 @@ def test_term_editor_updates_accelerated_scenario_only() -> None:
     assert not app.error
     assert len(app.tabs[0].dataframe[0].value) == 360
     assert len(app.tabs[1].dataframe[0].value) == 11
+
+
+def test_ing_default_has_separate_annex_and_inverse_quote() -> None:
+    from src.models import RepaymentModel
+
+    app = AppTest.from_file(str(APP_PATH)).run()
+    assert not app.exception
+    assert not app.error
+    assert app.selectbox(key="repayment_model").value == RepaymentModel.ING
+    assert not any(s.key == "strategy" for s in app.selectbox)
+    app.number_input(key="amount").set_value(12000.0)
+    app.number_input(key="months").set_value(12)
+    app.number_input(key="rate").set_value(0.0).run()
+    app.number_input(key="goal_payment").set_value(1000.0)
+    app.button[0].click().run()
+    assert not app.exception
+    assert not app.error
+    metric = next(m for m in app.metric if m.label == "Minimalna dodatkowa nadpłata")
+    assert metric.value == "1,000.00 PLN"
+
+
+def test_ing_exact_date_and_midperiod_annex_event_table() -> None:
+    from datetime import date
+
+    app = AppTest.from_file(str(APP_PATH)).run()
+    app.date_input(key="start_date").set_value(date(2026, 1, 15))
+    app.slider(key="payment_day").set_value(15)
+    app.number_input(key="amount").set_value(12000.0)
+    app.number_input(key="months").set_value(12)
+    app.number_input(key="rate").set_value(0.0).run()
+    app.radio(key="mode").set_value("Jednorazowa").run()
+    app.checkbox(key="exact_op_date").check().run()
+    app.date_input(key="single_date").set_value(date(2026, 1, 20))
+    app.number_input(key="op_amount").set_value(300.0)
+    app.session_state["annex_editor"] = {
+        "edited_rows": {},
+        "deleted_rows": [],
+        "added_rows": [{"date": "2026-01-21", "target_payment": 1100.0}],
+    }
+    app.run()
+    assert not app.exception
+    assert not app.error
+    events = next(
+        frame.value
+        for frame in app.dataframe
+        if "payment_before" in frame.value.columns
+    )
+    assert events.iloc[0].payment_after == 975.0
+    assert events.iloc[1].payment_after == 1063.64
+    assert len(app.tabs[1].dataframe[0].value) == 11
+
+
+def test_ing_invalid_annex_shows_input_error() -> None:
+    app = AppTest.from_file(str(APP_PATH)).run()
+    when = app.date_input(key="start_date").value.isoformat()
+    app.session_state["annex_editor"] = {
+        "edited_rows": {},
+        "deleted_rows": [],
+        "added_rows": [{"date": when, "target_payment": 1.0}],
+    }
+    app.run()
+    assert not app.exception
+    assert app.error
