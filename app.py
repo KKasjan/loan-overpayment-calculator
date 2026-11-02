@@ -26,6 +26,7 @@ from src.scenarios import (
     build_term_changes,
     decimal_input,
     percent_input,
+    principal_from_balance,
 )
 
 st.set_page_config(
@@ -48,8 +49,20 @@ repayment_model = st.sidebar.selectbox(
 )
 is_ing = repayment_model == RepaymentModel.ING
 
+balance_kind = st.sidebar.selectbox(
+    "Jaką kwotę podajesz?",
+    ["Sam kapitał", "Łączne saldo: kapitał + naliczone odsetki"],
+    key="balance_kind",
+)
+balance_includes_interest = balance_kind != "Sam kapitał"
 amount = st.sidebar.number_input(
-    "Pozostały kapitał (PLN)", min_value=0.01, value=300000.0, step=1000.0, key="amount"
+    "Łączne saldo z ING (PLN)"
+    if balance_includes_interest
+    else "Pozostały kapitał (PLN)",
+    min_value=0.01,
+    value=300000.0,
+    step=1000.0,
+    key="amount",
 )
 rate = st.sidebar.number_input(
     "Oprocentowanie roczne (%)",
@@ -160,12 +173,24 @@ if st.sidebar.checkbox("Podaj dokładny termin najbliższej raty", key="custom_f
     )
 accrued = decimal_input(
     st.sidebar.number_input(
-        "Odsetki naliczone przed datą stanu (PLN)",
+        "Odsetki naliczone na datę stanu (PLN)",
         min_value=0.0,
         value=0.0,
         key="accrued",
     )
 )
+if balance_includes_interest:
+    st.sidebar.caption(
+        "Wpisz odsetki z podziału salda w ING na tę samą datę. "
+        "Odejmiemy je od salda i rozliczymy w najbliższej racie. "
+        "Saldo ma obejmować tylko kapitał i odsetki, bez opłat i ubezpieczeń. "
+        "Nie odejmuj całej części odsetkowej przyszłej raty."
+    )
+else:
+    st.sidebar.caption(
+        "Kapitał nie zawiera odsetek. Podaj osobno odsetki już naliczone na datę stanu; "
+        "0 zł wybierz tylko, gdy nie ma nierozliczonych odsetek."
+    )
 current_payment = None
 if st.sidebar.checkbox("Użyj aktualnej raty z banku", key="use_current"):
     current_payment = decimal_input(
@@ -369,6 +394,12 @@ def run_simulation(
 
 
 try:
+    principal = principal_from_balance(
+        decimal_input(amount), accrued, includes_interest=balance_includes_interest
+    )
+    st.sidebar.caption(
+        f"Kapitał do obliczeń: {principal:,.2f} PLN | Naliczone odsetki: {accrued:,.2f} PLN"
+    )
     params = LoanParameters(
         repayment_model=repayment_model,
         annexes=build_annexes(
@@ -377,7 +408,7 @@ try:
                 for row in annex_rows.to_dict("records")
             ]
         ),
-        amount=decimal_input(amount),
+        amount=principal,
         annual_interest_rate=percent_input(rate),
         start_date=start,
         payment_day=payment_day,

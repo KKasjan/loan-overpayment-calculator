@@ -111,3 +111,9 @@ To nie zastępuje indywidualnej umowy. Brakujące potwierdzenie obejmuje konwenc
 Transze, karencja, raty malejące, zaległości, wakacje kredytowe i kredyty walutowe nie należą do bieżącego modelu. Jeżeli występują w Twoim kredycie, trzeba rozszerzyć model przed porównaniem. Kryterium akceptacji: uzgodniony przypadek bankowy z wyjaśnionymi różnicami groszowymi, nie samo przejście testów.
 
 Status wszystkich punktów pierwotnego audytu znajduje się w [AUDIT_STATUS.md](AUDIT_STATUS.md).
+
+## Saldo ING zawierające naliczone odsetki
+
+W polu **Jaką kwotę podajesz?** wybierz **Sam kapitał** albo **Łączne saldo: kapitał + naliczone odsetki**. W drugim wariancie program odejmuje osobno podane odsetki od łącznego salda. Obie kwoty przepisz z banku na tę samą datę. Opłaty i ubezpieczenia nie należą do tego salda. Pole odsetek oznacza kwotę już naliczoną na datę stanu, a nie pełną część odsetkową następnej raty. Program pokazuje wynik podziału przed obliczeniami i odrzuca saldo bez dodatniego kapitału.
+
+Potwierdzony przypadek bankowy sprawdza rozdzielenie salda i rozliczenie odsetek przy **podanej** racie z banku. Nie potwierdza jeszcze algorytmu samodzielnego wyznaczania tej raty ani rat po aneksie.

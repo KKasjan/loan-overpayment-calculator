@@ -12,6 +12,7 @@ from src.models import (
     OverpaymentStrategy,
     RateChange,
     TermChange,
+    validate_money,
 )
 
 
@@ -132,3 +133,21 @@ def build_annexes(rows: list[dict[str, Any]]) -> tuple[AnnexInstruction, ...]:
         )
         for row in rows
     )
+
+
+def principal_from_balance(
+    balance: Decimal, accrued_interest: Decimal, *, includes_interest: bool
+) -> Decimal:
+    """Normalize a bank balance without capitalizing already accrued interest.
+
+    The total option means principal + interest only, excluding fees/insurance.
+    Both amounts must be reported for the same state date.
+    """
+    validate_money(balance, "Saldo", positive=True)
+    validate_money(accrued_interest, "Naliczone odsetki")
+    principal = balance - accrued_interest if includes_interest else balance
+    if principal <= 0:
+        raise ValueError(
+            "Odsetki muszą być mniejsze od łącznego salda; kapitał musi być dodatni."
+        )
+    return principal

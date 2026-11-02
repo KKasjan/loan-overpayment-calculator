@@ -584,3 +584,7 @@ Dokumentowane założenia obejmują m.in. kolejność rata–nadpłata w dniu ra
 ## Weryfikacja po dodaniu modelu ING
 
 2 listopada 2026: 103 testy backendu i AppTest oraz 3 testy przeglądarkowe Chromium przeszły. Ruff, formatowanie, MyPy i kontrola białych znaków również przeszły. Automatyczne kontrole GitHub Actions rozszerzono o gałąź `stage`. Odbiór na indywidualnym harmonogramie ING i merge do `main` pozostają otwarte.
+
+## Aktualizacja: kapitał a saldo łączne ING
+
+`src/scenarios.py` — `principal_from_balance`: walidacja salda i odsetek, wydzielenie dodatniego kapitału z kwoty łącznej. `app.py` — wybór „Sam kapitał” / „Łączne saldo”, wyjaśnienie daty i zakresu odsetek oraz podgląd kapitału przyjmowanego do obliczeń. `tests/test_ing.py` — zgodność rozliczenia potwierdzonego przypadku ING i odrzucenie nieprawidłowego podziału. `tests/test_app.py` — identyczny harmonogram dla równoważnego wpisania kapitału i salda łącznego, błąd dla odsetek równych saldu. Potwierdzenie dotyczy rozliczenia istniejącej raty podanej z banku, a nie jej samodzielnego wyznaczenia.

@@ -54,3 +54,9 @@ Testy jakości i obu modeli przechodzą; rzeczywiste przypadki ING odtwarzają r
 2 listopada 2026: **103 testy silnika/formularzy oraz 3 testy Chromium zakończone powodzeniem**. Ruff, kontrola formatowania, MyPy i `git diff --check` również przeszły. Testy przeglądarkowe wykonano na lokalnym serwerze `http://127.0.0.1:8503`. Przypadki bankowe pozostają niezweryfikowane z powodu brakujących danych opisanych wyżej.
 
 CI uruchamia te kontrole także po push na `stage`; lokalny wynik nie stanowi potwierdzenia zakończenia zdalnego zadania GitHub Actions.
+
+## Aktualizacja: saldo z naliczonymi odsetkami
+
+Dodano jawny wybór rodzaju salda. Łączne saldo kapitału i odsetek jest rozdzielane przed utworzeniem parametrów kredytu; odsetki pozostają osobno do rozliczenia w najbliższej racie. Nie są kapitalizowane. `src/scenarios.py`: `principal_from_balance`; `app.py`: wybór rodzaju salda, odsetki na datę stanu i podgląd podziału. Testy w `tests/test_ing.py` oraz `tests/test_app.py` sprawdzają rzeczywiste rozliczenie, nieprawidłowy podział i równoważność obu sposobów wprowadzania danych.
+
+Potwierdzono część odsetkową i kapitałową najbliższej raty po prawidłowym wydzieleniu kapitału oraz podaniu istniejącej raty z banku. Samodzielne wyznaczenie jej wysokości i rat po aneksie pozostaje do zweryfikowania; kryterium merge nie jest jeszcze spełnione.

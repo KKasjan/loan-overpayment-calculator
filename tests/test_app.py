@@ -200,3 +200,20 @@ def test_ing_invalid_annex_shows_input_error() -> None:
     app.run()
     assert not app.exception
     assert app.error
+
+
+def test_total_bank_balance_and_principal_input_produce_identical_schedules() -> None:
+    app = AppTest.from_file(str(APP_PATH)).run()
+    app.number_input(key="amount").set_value(12000.0)
+    app.number_input(key="accrued").set_value(100.0).run()
+    expected = app.tabs[0].dataframe[0].value.copy()
+    app.selectbox(key="balance_kind").set_value(
+        "Łączne saldo: kapitał + naliczone odsetki"
+    ).run()
+    app.number_input(key="amount").set_value(12100.0).run()
+    assert not app.exception
+    assert not app.error
+    assert app.tabs[0].dataframe[0].value.equals(expected)
+    app.number_input(key="accrued").set_value(12100.0).run()
+    assert not app.exception
+    assert app.error
