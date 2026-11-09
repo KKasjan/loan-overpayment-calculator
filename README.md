@@ -32,7 +32,7 @@ Rata kalendarzowa jest wyszukiwana w groszach: ma pokrywać odsetki i spłacić 
 
 **Nie potwierdzono jeszcze zgodności kwot z konkretnym kredytem ING.** Do kalibracji potrzebujemy salda i oprocentowania przed nadpłatą, liczby pozostałych rat, dat księgowania i obowiązywania aneksu oraz raty po samej nadpłacie. Nie wyznaczamy automatycznie widełek ani uprawnień do aneksu. Daty pobrania po świętach mają charakter informacyjny; nie przesuwają okresu odsetkowego. Aktualna rata z banku pozostaje do pierwszego przeliczenia; nie służy do odgadywania salda lub stopy.
 
-Plan i kryteria zakończenia: [ING_WORK_PLAN.md](ING_WORK_PLAN.md). Dane indywidualnego kredytu przechowuj w ignorowanym katalogu `local_data/`, poza GitHubem.
+Warunek zakończenia: zgodność obliczeń z harmonogramem banku i testy obu modeli. Dane indywidualnego kredytu przechowuj w ignorowanym katalogu `local_data/`, poza GitHubem.
 
 ## Dane istniejącego kredytu
 
@@ -110,10 +110,25 @@ To nie zastępuje indywidualnej umowy. Brakujące potwierdzenie obejmuje konwenc
 
 Transze, karencja, raty malejące, zaległości, wakacje kredytowe i kredyty walutowe nie należą do bieżącego modelu. Jeżeli występują w Twoim kredycie, trzeba rozszerzyć model przed porównaniem. Kryterium akceptacji: uzgodniony przypadek bankowy z wyjaśnionymi różnicami groszowymi, nie samo przejście testów.
 
-Status wszystkich punktów pierwotnego audytu znajduje się w [AUDIT_STATUS.md](AUDIT_STATUS.md).
+Robocze raporty audytu i plany prac są przechowywane lokalnie, poza repozytorium. Zasady działania i ograniczenia kalkulatora opisuje ten README.
 
 ## Saldo ING zawierające naliczone odsetki
 
 W polu **Jaką kwotę podajesz?** wybierz **Sam kapitał** albo **Łączne saldo: kapitał + naliczone odsetki**. W drugim wariancie program odejmuje osobno podane odsetki od łącznego salda. Obie kwoty przepisz z banku na tę samą datę. Opłaty i ubezpieczenia nie należą do tego salda. Pole odsetek oznacza kwotę już naliczoną na datę stanu, a nie pełną część odsetkową następnej raty. Program pokazuje wynik podziału przed obliczeniami i odrzuca saldo bez dodatniego kapitału.
 
-Potwierdzony przypadek bankowy sprawdza rozdzielenie salda i rozliczenie odsetek przy **podanej** racie z banku. Nie potwierdza jeszcze algorytmu samodzielnego wyznaczania tej raty ani rat po aneksie.
+Testy syntetyczne sprawdzają rozdzielenie salda i rozliczenie odsetek przy **podanej** racie. Prywatne porównania z bankiem pozostają poza repozytorium. Algorytm samodzielnego wyznaczania raty i rat po aneksie nadal wymaga potwierdzenia.
+
+## Uruchamianie pomocnicze na macOS
+
+Skrypt `scripts/launch_desktop.py` można uruchomić interpreterem środowiska projektu lub wywoływać z lokalnej aplikacji macOS. Gotowa ikona `.app` jest lokalnym skrótem i nie jest częścią repozytorium. Uruchamia serwer wyłącznie na `127.0.0.1`, wybiera wolny port i otwiera domyślną przeglądarkę. Kolejne kliknięcie korzysta z tej samej instancji, jeśli nadal działa. Po ponownym uruchomieniu komputera serwer jest uruchamiany od nowa.
+
+Zamknięcie karty przeglądarki nie zatrzymuje serwera. Stan uruchomienia oraz log znajdują się w ignorowanym `local_data/desktop/`. Ikona wskazuje aktualną lokalizację projektu; po przeniesieniu katalogu trzeba odtworzyć skrót. Uruchamia wersję kodu z bieżącego lokalnego katalogu, bez pobierania zmian z GitHuba.
+
+
+## Co przechowujemy w repozytorium
+
+- Kod aplikacji i skrypty uruchomieniowe (`app.py`, `src/`, `scripts/`).
+- Testy oparte na danych syntetycznych (`tests/`).
+- Zależności, konfigurację jakości, automatyczne kontrole GitHub Actions oraz instrukcję uruchomienia.
+
+Poza Git pozostają środowiska Python, cache, logi, raporty i zrzuty testów, sekrety, dane bankowe (`local_data/`), lokalne ustawienia asystenta oraz robocze dokumenty `AUDIT_STATUS.md` i `ING_WORK_PLAN.md`. Dodanie pliku do `.gitignore` nie usuwa jego starszych wersji z historii repozytorium.

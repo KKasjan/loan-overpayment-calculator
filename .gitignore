@@ -14,3 +14,19 @@ htmlcov/
 
 # Individual bank data stays local.
 local_data/
+
+# Local working documents; keep on disk, do not publish.
+/AUDIT_STATUS.md
+/ING_WORK_PLAN.md
+
+# Local assistant configuration.
+/.agents/
+/.codex/
+/.github/copilot-instructions.md
+
+# Credentials and runtime logs.
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+*.log

@@ -292,29 +292,29 @@ def test_annex_builder_parses_optional_bounds() -> None:
     assert result == (AnnexInstruction(date(2026, 1, 20), D("1100")),)
 
 
-def test_confirmed_ing_balance_includes_accrued_interest() -> None:
+def test_balance_includes_accrued_interest() -> None:
     from src.scenarios import principal_from_balance
 
     principal = principal_from_balance(
-        D("739933.42"), D("2346.13"), includes_interest=True
+        D("10059.18"), D("59.18"), includes_interest=True
     )
-    assert principal == D("737587.29")
+    assert principal == D("10000.00")
     params = parameters(
         amount=principal,
         start_date=date(2026, 11, 2),
-        total_month=336,
+        total_month=12,
         payment_day=15,
         first_payment_date=date(2026, 11, 15),
-        annual_interest_rate=D("0.0645"),
-        accrued_interest=D("2346.13"),
-        current_installment=D("4748.90"),
+        annual_interest_rate=D("0.12"),
+        accrued_interest=D("59.18"),
+        current_installment=D("900.00"),
     )
     first = simulate_ing(params, []).schedule[0]
-    assert first.total_installment == D("4748.90")
-    assert first.interest == D("4040.56")
-    assert first.principal == D("708.34")
-    # Confirms interest settlement with supplied bank installment, not its derivation.
-    assert first.remaining_balance == D("736878.95")
+    assert first.total_installment == D("900.00")
+    assert first.interest == D("101.92")
+    assert first.principal == D("798.08")
+    # Synthetic case: 18 accrued days + 13 remaining days, without capitalization.
+    assert first.remaining_balance == D("9201.92")
 
 
 @pytest.mark.parametrize(
