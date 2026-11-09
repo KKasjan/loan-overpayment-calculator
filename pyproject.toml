@@ -5,11 +5,31 @@ exclude = [".venv", ".venv-1", ".agents"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["src", "app.py", "tests"]
+files = ["src", "scripts", "app.py", "tests"]
 ignore_missing_imports = true
 follow_imports = "skip"
 check_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--output=test-results/browser"
 markers = ["e2e: browser tests requiring a running Streamlit server and --run-e2e"]
+
+
+[tool.coverage.run]
+branch = true
+concurrency = ["thread"]
+# The explicit scripts root includes standalone launcher files without __init__.py.
+source = [".", "scripts"]
+omit = ["tests/*", ".venv*/*", ".agents/*", ".codex/*", "local_data/*"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+fail_under = 99
+
+[tool.coverage.html]
+directory = "test-results/coverage"
+
+[tool.coverage.json]
+output = "test-results/coverage.json"

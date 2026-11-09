@@ -2,6 +2,7 @@
 streamlit==1.65.0
 pandas==3.0.3
 pytest==8.1.1
+coverage==7.17.2
 playwright==1.63.0
 pytest-playwright==0.10.0
 ruff==0.3.4

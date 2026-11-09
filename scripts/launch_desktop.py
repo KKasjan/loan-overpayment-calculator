@@ -60,10 +60,12 @@ def launch() -> str:
             if pid > 0 and 1 <= port <= 65535 and alive(pid):
                 if wait_ready(pid, port):
                     return f"http://127.0.0.1:{port}/{BASE_PATH}/"
-                raise RuntimeError(
-                    "The calculator server is running but not responding. "
-                    f"Details: {RUNTIME / 'server.log'}"
-                )
+                if alive(pid):
+                    raise RuntimeError(
+                        "The calculator server is running but not responding. "
+                        f"Details: {RUNTIME / 'server.log'}"
+                    )
+                # A server may exit while readiness is checked; replace that stale state.
         except (OSError, ValueError, KeyError, TypeError):
             pass
         # A dedicated available port avoids conflicts with manually started apps.
@@ -103,15 +105,21 @@ def launch() -> str:
         )
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> int:
+    """Run the desktop entry point; return an exit code without exiting the caller."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-browser", action="store_true")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         url = launch()
         if not args.no_browser:
             subprocess.run(["/usr/bin/open", url], check=True)
         print(url)
+        return 0
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         print(str(error), file=sys.stderr)
-        sys.exit(1)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

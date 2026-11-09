@@ -98,7 +98,20 @@ Zwykły pytest uruchamia testy silnika, danych i formularza AppTest. Testy przeg
 .venv/bin/python -m pytest -m e2e --run-e2e --app-url http://127.0.0.1:8502 --tracing retain-on-failure --screenshot only-on-failure
 ```
 
-CI instaluje przypięte zależności, wykonuje Ruff, MyPy i testy, uruchamia serwer, czeka na endpoint zdrowia i wykonuje Playwright. Raporty JUnit, ślady i zrzuty z niepowodzeń trafiają do `test-results/`. Projekt nie deklaruje generowania raportu coverage.
+CI instaluje przypięte zależności, wykonuje Ruff, MyPy i testy, uruchamia serwer, czeka na endpoint zdrowia i wykonuje Playwright. Testy jednostkowe oraz AppTest są uruchamiane pod `coverage` z pomiarem rozgałęzień. CI wymaga osobno co najmniej **99% wykonanych linii i 99% rozgałęzień**; liczy wartości przed zaokrągleniem. Raporty JUnit, JSON, HTML, ślady i zrzuty z niepowodzeń trafiają do `test-results/`. Artefakty przeglądarkowe są zapisywane w `test-results/browser/`, aby kolejne uruchomienie Playwright nie usuwało raportu pokrycia.
+
+Pomiar lokalny (po zainstalowaniu aktualnych zależności):
+
+```bash
+.venv/bin/python -m coverage run -m pytest -m 'not e2e'
+.venv/bin/python -m coverage report
+.venv/bin/python -m coverage json
+.venv/bin/python -m coverage html
+```
+
+Raport otworzysz w `test-results/coverage/index.html`. Zakres pomiaru obejmuje `app.py`, wszystkie moduły `src/` oraz skrypty `scripts/`; pomija testy, środowiska zewnętrzne, dane prywatne i narzędzia asystenta. Konfiguracja znajduje się w `pyproject.toml`. Testy interfejsu AppTest są częścią raportu; testy przeglądarkowe są osobnym sprawdzeniem i nie są doliczane do coverage serwera.
+
+Testy walidacji, granic harmonogramów i uruchamiania znajdują się w `test_validation_edges.py`, `test_financial_edges.py`, `test_app_edges.py` i `test_desktop_launcher.py`. Skrypt ikony ma testy cyklu życia, jednoczesnych kliknięć, błędów i CLI z izolowanymi granicami systemowymi. Testy uszkodzonego zapisu harmonogramu celowo wprowadzają błąd w wierszu księgi, aby sprawdzić kontrolę zgodności kapitału i płatności. Nie zastępują one niezależnych testów matematycznych ani porównania z bankiem. Wysokie coverage oznacza wykonanie kodu przez testy, nie potwierdzenie wszystkich możliwych kombinacji danych.
 
 ## Źródła i granica zgodności
 
