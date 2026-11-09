@@ -246,7 +246,7 @@ def test_fixed_period_rejects_early_changes_and_warns_about_future() -> None:
     with pytest.raises(ValueError):
         loan(fixed_until=end, rate_changes=(RateChange(date(2030, 1, 10), D(".05")),))
     result = calculate_simulation_summary(loan(total_month=120, fixed_until=end), [])
-    assert any("fixed-rate" in w for w in result.warnings)
+    assert any("fixed_rate" in w for w in result.warnings)
 
 
 def test_costs_are_separate_from_principal_and_interest() -> None:

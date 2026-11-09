@@ -132,3 +132,13 @@ Zamknięcie karty przeglądarki nie zatrzymuje serwera. Stan uruchomienia oraz l
 - Zależności, konfigurację jakości, automatyczne kontrole GitHub Actions oraz instrukcję uruchomienia.
 
 Poza Git pozostają środowiska Python, cache, logi, raporty i zrzuty testów, sekrety, dane bankowe (`local_data/`), lokalne ustawienia asystenta oraz robocze dokumenty `AUDIT_STATUS.md` i `ING_WORK_PLAN.md`. Dodanie pliku do `.gitignore` nie usuwa jego starszych wersji z historii repozytorium.
+
+## Język interfejsu: PL / EN
+
+Przełącznik w prawym górnym rogu zmienia język etykiet, opisów, błędów, ostrzeżeń, tabel i wykresu. Domyślnie wybrany jest polski. Wybór jest pamiętany w bieżącej sesji; nowa sesja zaczyna się po polsku. Przełączenie zachowuje wpisane dane, wiersze scenariuszy, strategie i gotowy wynik wyceny nadpłaty. Zmiana danych finansowych unieważnia wcześniejszą wycenę, aby nie pokazywać nieaktualnego wyniku.
+
+Kwoty wynikowe są formatowane jako `4 748,90 zł` w PL i `4,748.90 PLN` w EN. Waluta i obliczenia pozostają takie same. Daty w tabelach i na osi wykresu mają format ISO. CSV w obu wersjach ma identyczne dane, angielskie nazwy kolumn i niezmienny format liczbowy. Pomocnicze menu Streamlit i natywne kontrolki przeglądarki mogą korzystać z języka swojego środowiska.
+
+Tłumaczenia znajdują się w `locales/pl.json` i `locales/en.json`. Oba pliki muszą zawierać te same klucze i parametry tekstów. `src/i18n.py` odpowiada za prezentację i formatowanie; `src/messages.py` definiuje błędy z kodami niezależnymi od języka. Wartości enumów, strategie, nazwy zdarzeń, komentarze i identyfikatory w kodzie są angielskie. Silnik zwraca kody błędów i ostrzeżeń, a interfejs dobiera ich tłumaczenie. Komunikaty diagnostyczne wyjątków pozostają angielskie.
+
+Testy `tests/test_i18n.py` sprawdzają kompletność słowników oraz zachowanie formularzy, tabel i wyników. Testy przeglądarkowe dodatkowo weryfikują PL → EN → PL i identyczność pobieranego CSV.

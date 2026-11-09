@@ -1,5 +1,7 @@
 """Pure scenario construction and input parsing, independently testable from Streamlit."""
 
+from src.messages import InputError
+
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -20,9 +22,9 @@ def decimal_input(value: Any) -> Decimal:
     try:
         number = Decimal(str(value).strip().replace(" ", "").replace(",", "."))
     except (InvalidOperation, ValueError):
-        raise ValueError(f"Invalid number: {value!r}") from None
+        raise InputError("validation.invalid_number_value", value=value) from None
     if not number.is_finite():
-        raise ValueError("A number must be finite.")
+        raise InputError("validation.a_number_must_be_finite")
     return number
 
 
@@ -36,7 +38,9 @@ def date_input(value: Any) -> date:
     try:
         return date.fromisoformat(str(value))
     except ValueError:
-        raise ValueError(f"Use an ISO date (YYYY-MM-DD): {value!r}") from None
+        raise InputError(
+            "validation.use_an_iso_date_yyyy_mm_dd_value", value=value
+        ) from None
 
 
 def build_overpayments(
@@ -55,15 +59,7 @@ def build_overpayments(
     if mode == "irregular":
         result = []
         for row in rows or []:
-            labels = {
-                "Obniżenie raty": OverpaymentStrategy.REDUCE_INSTALLMENT,
-                "Skrócenie okresu": OverpaymentStrategy.SHORTEN_TERM,
-                "Mixed": OverpaymentStrategy.MIXED,
-            }
-            label = str(row["strategy"])
-            row_strategy = (
-                labels[label] if label in labels else OverpaymentStrategy(label)
-            )
+            row_strategy = OverpaymentStrategy(str(row["strategy"]))
             result.append(
                 Overpayment(
                     amount=decimal_input(row["amount"]),
@@ -83,10 +79,12 @@ def build_overpayments(
         if (
             not isinstance(month, int) or isinstance(month, bool)
         ) or not 1 <= month <= len(dates):
-            raise ValueError("Overpayment month is outside the remaining loan term.")
+            raise InputError(
+                "validation.overpayment_month_is_outside_the_remaining_loan_term"
+            )
         dates = [dates[month - 1]]
     elif mode != "regular":
-        raise ValueError("Unknown overpayment mode.")
+        raise InputError("validation.unknown_overpayment_mode")
     if amount == 0:
         return []
     return [
@@ -113,7 +111,7 @@ def build_term_changes(rows: list[dict[str, Any]]) -> tuple[TermChange, ...]:
     for row in rows:
         months = decimal_input(row["remaining_months"])
         if months != months.to_integral_value():
-            raise ValueError("Remaining months must be an integer.")
+            raise InputError("validation.remaining_months_must_be_an_integer")
         result.append(TermChange(date_input(row["date"]), int(months)))
     return tuple(result)
 
@@ -143,11 +141,11 @@ def principal_from_balance(
     The total option means principal + interest only, excluding fees/insurance.
     Both amounts must be reported for the same state date.
     """
-    validate_money(balance, "Saldo", positive=True)
-    validate_money(accrued_interest, "Naliczone odsetki")
+    validate_money(balance, "Balance", positive=True)
+    validate_money(accrued_interest, "Accrued interest")
     principal = balance - accrued_interest if includes_interest else balance
     if principal <= 0:
-        raise ValueError(
-            "Odsetki muszą być mniejsze od łącznego salda; kapitał musi być dodatni."
+        raise InputError(
+            "validation.accrued_interest_must_be_less_than_the_total_balance"
         )
     return principal

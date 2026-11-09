@@ -1,5 +1,7 @@
 """Daily simple interest and dated repayment events; no daily capitalization."""
 
+from src.messages import InputError, CalculationError
+
 from calendar import isleap, monthrange
 from dataclasses import replace
 from datetime import date, timedelta
@@ -32,7 +34,7 @@ def get_next_payment_date(current_date: date, payment_day: int) -> date:
     if (
         not isinstance(payment_day, int) or isinstance(payment_day, bool)
     ) or not 1 <= payment_day <= 31:
-        raise ValueError("Payment day must be between 1 and 31.")
+        raise InputError("validation.payment_day_must_be_between_1_and_31")
     year, month = current_date.year, current_date.month + 1
     if month == 13:
         year, month = year + 1, 1
@@ -74,7 +76,7 @@ def calculate_daily_interest(
     validate_money(balance, "Interest principal")
     validate_rate(annual_rate)
     if end_date < start_date:
-        raise ValueError("Interest period ends before it starts.")
+        raise InputError("validation.interest_period_ends_before_it_starts")
     total = ZERO
     current = start_date
     while current < end_date:
@@ -286,8 +288,8 @@ def _remaining_count(
         if balance + interest <= payment:
             return count, balance + interest
         if payment <= interest:
-            raise ValueError(
-                "Installment does not cover interest; choose calendar annuity or a higher payment."
+            raise InputError(
+                "validation.installment_does_not_cover_interest_choose_calendar_annuity_or"
             )
         balance -= payment - interest
         start = due
@@ -305,14 +307,18 @@ def generate_amortization_schedule(
     ops = sorted(overpayments or [], key=lambda op: op.date)
     for op in ops:
         if not params.start_date <= op.date <= dates[-1]:
-            raise ValueError("Overpayment is outside the simulation date range.")
+            raise InputError(
+                "validation.overpayment_is_outside_the_simulation_date_range"
+            )
     for change in params.rate_changes:
         if change.date > dates[-1]:
-            raise ValueError("Rate change is outside the simulation date range.")
+            raise InputError(
+                "validation.rate_change_is_outside_the_simulation_date_range"
+            )
     for instruction in params.term_changes:
         if instruction.date not in dates[:-1]:
-            raise ValueError(
-                "Term instruction must follow a contractual installment before maturity."
+            raise InputError(
+                "validation.term_instruction_must_follow_a_contractual_installment_before_maturity"
             )
     balance, current = params.amount, params.start_date
     horizon = len(dates)
@@ -375,8 +381,8 @@ def generate_amortization_schedule(
             installment = balance + interest
         else:
             if payment <= interest:
-                raise ValueError(
-                    "Installment does not cover interest. Use calendar annuity or increase the current installment."
+                raise InputError(
+                    "validation.installment_does_not_cover_interest_use_calendar_annuity_or"
                 )
             installment = payment
             principal = installment - interest
@@ -409,8 +415,8 @@ def generate_amortization_schedule(
             for instruction in params.term_changes:
                 if instruction.date == due:
                     if instruction.remaining_months > len(remaining):
-                        raise ValueError(
-                            "Term instruction may only shorten the remaining contractual term."
+                        raise InputError(
+                            "validation.term_instruction_may_only_shorten_the_remaining_contractual_term"
                         )
                     horizon = index + 1 + instruction.remaining_months
                     remaining = dates[index + 1 : horizon]
@@ -441,13 +447,13 @@ def generate_amortization_schedule(
         )
         current = end
     if not schedule or schedule[-1].remaining_balance != 0:
-        raise ArithmeticError("Schedule ended with outstanding principal.")
+        raise CalculationError("validation.schedule_ended_with_outstanding_principal")
     capital = sum((r.principal + r.overpayment for r in schedule), ZERO)
     if capital != params.amount:
-        raise ArithmeticError("Principal reconciliation failed.")
+        raise CalculationError("validation.principal_reconciliation_failed")
     cash = sum((r.total_installment + r.overpayment for r in schedule), ZERO)
     if cash != params.amount + sum((r.interest for r in schedule), ZERO):
-        raise ArithmeticError("Payment and interest reconciliation failed.")
+        raise CalculationError("validation.payment_and_interest_reconciliation_failed")
     return schedule
 
 
@@ -470,33 +476,33 @@ def calculate_simulation_summary(
     made = sum((r.overpayment for r in overpaid), ZERO)
     requested = sum((op.amount for op in overpayments), ZERO)
     warnings = [
-        "Simulation assumptions require reconciliation with your ING contract and bank schedule."
+        "validation.simulation_assumptions_require_reconciliation_with_your_ing_contract_and"
     ]
     if params.fixed_until and dates_after_fixed(params):
         warnings.append(
-            "The simulation extends beyond the fixed-rate period; supplied future rates are scenarios, not forecasts."
+            "validation.the_simulation_extends_beyond_the_fixed_rate_period_supplied"
         )
     if (
         params.installment_method == InstallmentMethod.CALENDAR
         and params.repayment_model == RepaymentModel.GENERAL
     ):
         warnings.append(
-            "Calendar annuity has an interest-coverage floor; at extreme rates this may shorten the projected term even without overpayments."
+            "validation.calendar_annuity_has_an_interest_coverage_floor_at_extreme"
         )
     if params.installment_method == InstallmentMethod.MONTHLY:
         warnings.append(
-            "Monthly annuity is combined with daily interest; the final installment can differ."
+            "validation.monthly_annuity_is_combined_with_daily_interest_the_final"
         )
     if any(
         r.total_installment > standard[0].total_installment * Decimal("1.05")
         for r in standard[1:]
     ):
         warnings.append(
-            "A payment exceeds the initial installment by more than 5%; review dates, rates and final settlement."
+            "validation.a_payment_exceeds_the_initial_installment_by_more_than"
         )
     if requested > made:
         warnings.append(
-            "Some planned overpayments were capped or fell after early repayment; see unused overpayments."
+            "validation.some_planned_overpayments_were_capped_or_fell_after_early"
         )
     return SimulationSummary(
         total_paid_standard=money(params.amount + standard_interest + standard_cost),

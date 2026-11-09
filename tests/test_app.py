@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from streamlit.testing.v1 import AppTest
+from src.models import OverpaymentStrategy
 
 APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
 
@@ -21,7 +22,7 @@ def app_start() -> AppTest:
 @pytest.mark.parametrize("month", [1, 12])
 def test_overpayment_occurs_only_in_selected_month(month: int) -> None:
     app = app_start()
-    app.radio(key="mode").set_value("Jednorazowa").run()
+    app.radio(key="mode").set_value("single").run()
     app.number_input(key="op_month").set_value(month)
     app.number_input(key="op_amount").set_value(1000.0).run()
     assert not app.exception
@@ -37,7 +38,7 @@ def test_overpayment_occurs_only_in_selected_month(month: int) -> None:
 def test_short_term_single_overpayment_does_not_crash() -> None:
     app = app_start()
     app.number_input(key="months").set_value(3).run()
-    app.radio(key="mode").set_value("Jednorazowa").run()
+    app.radio(key="mode").set_value("single").run()
     assert not app.exception
     assert not app.error
     assert app.number_input(key="op_month").value == 3
@@ -49,8 +50,8 @@ def test_short_term_single_overpayment_does_not_crash() -> None:
 
 def test_zero_mixed_means_no_overpayments() -> None:
     app = app_start()
-    app.radio(key="mode").set_value("Regularne miesięczne").run()
-    app.selectbox(key="strategy").set_value("Mixed").run()
+    app.radio(key="mode").set_value("regular").run()
+    app.selectbox(key="strategy").set_value(OverpaymentStrategy.MIXED).run()
     app.number_input(key="shorten").set_value(0.0)
     app.number_input(key="reduce").set_value(0.0).run()
     assert not app.exception
@@ -82,7 +83,7 @@ def test_irregular_editor_adds_two_dated_overpayments() -> None:
 
     app = app_start()
     app.date_input(key="start_date").set_value(date(2026, 1, 10)).run()
-    app.radio(key="mode").set_value("Nieregularne").run()
+    app.radio(key="mode").set_value("irregular").run()
     app.session_state["overpayment_editor"] = {
         "edited_rows": {},
         "deleted_rows": [],
@@ -155,7 +156,7 @@ def test_ing_default_has_separate_annex_and_inverse_quote() -> None:
     assert not app.exception
     assert not app.error
     metric = next(m for m in app.metric if m.label == "Minimalna dodatkowa nadpłata")
-    assert metric.value == "1,000.00 PLN"
+    assert metric.value == "1 000,00 zł"
 
 
 def test_ing_exact_date_and_midperiod_annex_event_table() -> None:
@@ -167,7 +168,7 @@ def test_ing_exact_date_and_midperiod_annex_event_table() -> None:
     app.number_input(key="amount").set_value(12000.0)
     app.number_input(key="months").set_value(12)
     app.number_input(key="rate").set_value(0.0).run()
-    app.radio(key="mode").set_value("Jednorazowa").run()
+    app.radio(key="mode").set_value("single").run()
     app.checkbox(key="exact_op_date").check().run()
     app.date_input(key="single_date").set_value(date(2026, 1, 20))
     app.number_input(key="op_amount").set_value(300.0)
@@ -207,9 +208,7 @@ def test_total_bank_balance_and_principal_input_produce_identical_schedules() ->
     app.number_input(key="amount").set_value(12000.0)
     app.number_input(key="accrued").set_value(100.0).run()
     expected = app.tabs[0].dataframe[0].value.copy()
-    app.selectbox(key="balance_kind").set_value(
-        "Łączne saldo: kapitał + naliczone odsetki"
-    ).run()
+    app.selectbox(key="balance_kind").set_value("total").run()
     app.number_input(key="amount").set_value(12100.0).run()
     assert not app.exception
     assert not app.error

@@ -68,7 +68,7 @@ def test_separate_midperiod_annex_can_raise_payment_for_one_whole_month() -> Non
 
 def test_limit_too_low_for_one_month_is_explicit_error() -> None:
     params = parameters(annexes=(AnnexInstruction(date(2026, 1, 21), D("1000")),))
-    with pytest.raises(ValueError, match="nie wystarcza"):
+    with pytest.raises(ValueError, match="insufficient"):
         simulate_ing(params, [op(date(2026, 1, 20))])
 
 
@@ -83,7 +83,7 @@ def test_inverse_zero_interest_exact_minimum_and_one_cent_less() -> None:
     assert (
         len(simulate_ing(new, [op(quote.date, str(quote.overpayment))]).schedule) == 11
     )
-    with pytest.raises(ValueError, match="nie wystarcza"):
+    with pytest.raises(ValueError, match="insufficient"):
         simulate_ing(new, [op(quote.date, str(quote.overpayment - D("0.01")))])
 
 
@@ -181,7 +181,7 @@ def test_future_rate_change_not_used_in_today_quote() -> None:
         params, params.start_date, 1, D("1100")
     ) == required_overpayment(future, params.start_date, 1, D("1100"))
     result = simulate_ing(future, [])
-    assert any(e.kind == "Zmiana oprocentowania" for e in result.events)
+    assert any(e.kind == "rate_change" for e in result.events)
 
 
 @pytest.mark.parametrize("months,rate", [(360, "0.075"), (420, "0.20"), (3, "0")])
@@ -201,20 +201,20 @@ def test_long_schedule_principal_cash_and_payment_ceiling(
 
 
 def test_bank_bounds_validated_against_target_and_actual_candidate() -> None:
-    with pytest.raises(ValueError, match="maksimum"):
+    with pytest.raises(ValueError, match="maximum"):
         AnnexInstruction(date(2026, 1, 20), D("1100"), maximum_payment=D("1000"))
     params = parameters(
         annexes=(
             AnnexInstruction(date(2026, 1, 21), D("1100"), minimum_payment=D("1080")),
         )
     )
-    with pytest.raises(ValueError, match="poniżej minimum"):
+    with pytest.raises(ValueError, match="below the ING minimum"):
         simulate_ing(params, [op(date(2026, 1, 20))])
 
 
 def test_invalid_strategies_dates_and_inverse_targets_are_rejected() -> None:
     params = parameters()
-    with pytest.raises(ValueError, match="każda nadpłata"):
+    with pytest.raises(ValueError, match="every overpayment"):
         simulate_ing(
             params,
             [
@@ -223,11 +223,11 @@ def test_invalid_strategies_dates_and_inverse_targets_are_rejected() -> None:
                 )
             ],
         )
-    with pytest.raises(ValueError, match="zakresem"):
+    with pytest.raises(ValueError, match="outside"):
         simulate_ing(params, [op(date(2025, 1, 20))])
-    with pytest.raises(ValueError, match="przynajmniej"):
+    with pytest.raises(ValueError, match="At least"):
         required_overpayment(params, params.start_date, 12, D("1000"))
-    with pytest.raises(ValueError, match="dodatnią"):
+    with pytest.raises(ValueError, match="positive"):
         required_overpayment(params, params.start_date, 0, D("1000"))
 
 
@@ -269,7 +269,7 @@ def test_repeated_overpayments_reprice_without_losing_prior_annex(
     params = replace(params, annexes=(AnnexInstruction(dates[1], cap),))
     payments = [op(dates[0], "300"), op(dates[1], "300"), op(dates[2], "300")]
     result = simulate_ing(params, payments)
-    annex = next(e for e in result.events if e.kind.startswith("Aneks"))
+    annex = next(e for e in result.events if e.kind == "annex")
     last_op = result.events[-1]
     assert last_op.payment_after <= last_op.payment_before
     assert last_op.maturity == annex.maturity

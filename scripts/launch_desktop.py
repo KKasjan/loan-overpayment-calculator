@@ -61,8 +61,8 @@ def launch() -> str:
                 if wait_ready(pid, port):
                     return f"http://127.0.0.1:{port}/{BASE_PATH}/"
                 raise RuntimeError(
-                    "Serwer kalkulatora działa, ale nie odpowiada. "
-                    f"Szczegóły: {RUNTIME / 'server.log'}"
+                    "The calculator server is running but not responding. "
+                    f"Details: {RUNTIME / 'server.log'}"
                 )
         except (OSError, ValueError, KeyError, TypeError):
             pass
@@ -96,10 +96,10 @@ def launch() -> str:
                 return f"http://127.0.0.1:{port}/{BASE_PATH}/"
             if process.poll() is None:
                 raise RuntimeError(
-                    f"Uruchomienie trwa zbyt długo. Szczegóły: {RUNTIME / 'server.log'}"
+                    f"Startup is taking too long. Details: {RUNTIME / 'server.log'}"
                 )
         raise RuntimeError(
-            f"Nie udało się uruchomić kalkulatora. Szczegóły: {RUNTIME / 'server.log'}"
+            f"Could not start the calculator. Details: {RUNTIME / 'server.log'}"
         )
 
 

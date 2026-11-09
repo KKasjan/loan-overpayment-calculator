@@ -1,5 +1,7 @@
 """Validated simulation inputs. Rates are fractions, money is Decimal PLN."""
 
+from src.messages import InputError
+
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
@@ -13,8 +15,8 @@ class OverpaymentStrategy(Enum):
 
 
 class RepaymentModel(Enum):
-    GENERAL = "Ogólny — dotychczasowe strategie"
-    ING = "ING — nadpłata i osobny aneks (model do weryfikacji)"
+    GENERAL = "GENERAL"
+    ING = "ING"
 
 
 class DayCount(Enum):
@@ -23,34 +25,36 @@ class DayCount(Enum):
 
 
 class InstallmentMethod(Enum):
-    MONTHLY = "Rata ze stopą miesięczną (roczna / 12)"
-    CALENDAR = "Rata kalendarzowa (rzeczywiste daty)"
+    MONTHLY = "MONTHLY"
+    CALENDAR = "CALENDAR"
 
 
 class ShorteningPolicy(Enum):
-    KEEP_PAYMENT = "Utrzymanie wysokości raty"
-    WHOLE_MONTHS = "Pełne miesiące i przeliczenie raty"
+    KEEP_PAYMENT = "KEEP_PAYMENT"
+    WHOLE_MONTHS = "WHOLE_MONTHS"
 
 
 def validate_money(value: Decimal, name: str, *, positive: bool = False) -> None:
     if not isinstance(value, Decimal) or not value.is_finite():
-        raise ValueError(f"{name}: use a finite Decimal value.")
+        raise InputError("validation.name_use_a_finite_decimal_value", name=name)
     if value < 0 or (positive and value == 0):
-        raise ValueError(
-            f"{name}: amount must be {'positive' if positive else 'non-negative'}."
+        raise InputError(
+            "validation.name_amount_must_be_bound",
+            name=name,
+            bound="positive" if positive else "non-negative",
         )
     if value != value.quantize(Decimal("0.01")):
-        raise ValueError(f"{name}: use at most two decimal places.")
+        raise InputError("validation.name_use_at_most_two_decimal_places", name=name)
 
 
 def validate_rate(value: Decimal) -> None:
     if not isinstance(value, Decimal) or not value.is_finite() or not 0 <= value <= 1:
-        raise ValueError("Interest rate must be a finite Decimal between 0 and 1.")
+        raise InputError("validation.interest_rate_must_be_a_finite_decimal_between_0")
 
 
 def validate_date(value: date, name: str) -> None:
     if type(value) is not date:
-        raise ValueError(f"{name}: use a calendar date.")
+        raise InputError("validation.name_use_a_calendar_date", name=name)
 
 
 @dataclass(frozen=True)
@@ -76,7 +80,7 @@ class TermChange:
             not isinstance(self.remaining_months, int)
             or isinstance(self.remaining_months, bool)
         ) or self.remaining_months < 1:
-            raise ValueError("New remaining term must be a positive integer.")
+            raise InputError("validation.new_remaining_term_must_be_a_positive_integer")
 
 
 @dataclass(frozen=True)
@@ -98,12 +102,16 @@ class AnnexInstruction:
             self.minimum_payment is not None
             and self.target_payment < self.minimum_payment
         ):
-            raise ValueError("Wybrana rata jest poniżej podanego minimum ING.")
+            raise InputError(
+                "validation.selected_installment_is_below_the_supplied_ing_minimum"
+            )
         if (
             self.maximum_payment is not None
             and self.target_payment > self.maximum_payment
         ):
-            raise ValueError("Wybrana rata przekracza podane maksimum ING.")
+            raise InputError(
+                "validation.selected_installment_exceeds_the_supplied_ing_maximum"
+            )
 
 
 @dataclass(frozen=True)
@@ -118,18 +126,22 @@ class Overpayment:
         validate_money(self.amount, "Overpayment", positive=True)
         validate_date(self.date, "Overpayment")
         if not isinstance(self.strategy, OverpaymentStrategy):
-            raise ValueError("Unknown overpayment strategy.")
+            raise InputError("validation.unknown_overpayment_strategy")
         if self.strategy == OverpaymentStrategy.MIXED:
             if self.amount_shorten is None or self.amount_reduce is None:
-                raise ValueError("Mixed strategy requires both allocation amounts.")
+                raise InputError(
+                    "validation.mixed_strategy_requires_both_allocation_amounts"
+                )
             validate_money(self.amount_shorten, "Shortening allocation")
             validate_money(self.amount_reduce, "Reduction allocation")
             if self.amount_shorten + self.amount_reduce != self.amount:
-                raise ValueError(
-                    "Mixed allocations must sum to the overpayment amount."
+                raise InputError(
+                    "validation.mixed_allocations_must_sum_to_the_overpayment_amount"
                 )
         elif self.amount_shorten is not None or self.amount_reduce is not None:
-            raise ValueError("Split amounts are allowed only for Mixed strategy.")
+            raise InputError(
+                "validation.split_amounts_are_allowed_only_for_mixed_strategy"
+            )
 
 
 @dataclass(frozen=True)
@@ -164,15 +176,17 @@ class LoanParameters:
         if (
             not isinstance(self.total_month, int) or isinstance(self.total_month, bool)
         ) or not 1 <= self.total_month <= 420:
-            raise ValueError("Remaining term must be an integer from 1 to 420 months.")
+            raise InputError("validation.remaining_term_must_be_an_integer_from_1_to")
         if (
             not isinstance(self.payment_day, int) or isinstance(self.payment_day, bool)
         ) or not 1 <= self.payment_day <= 31:
-            raise ValueError("Payment day must be an integer from 1 to 31.")
+            raise InputError("validation.payment_day_must_be_an_integer_from_1_to")
         if self.first_payment_date is not None:
             validate_date(self.first_payment_date, "First payment")
             if self.first_payment_date <= self.start_date:
-                raise ValueError("First payment must be after the simulation start.")
+                raise InputError(
+                    "validation.first_payment_must_be_after_the_simulation_start"
+                )
         for value, name in [
             (self.accrued_interest, "Accrued interest"),
             (self.upfront_cost, "Upfront cost"),
@@ -190,31 +204,39 @@ class LoanParameters:
             (self.shortening_policy, ShorteningPolicy),
         ]:
             if not isinstance(convention, enum):
-                raise ValueError("Unknown calculation convention.")
+                raise InputError("validation.unknown_calculation_convention")
         if self.fixed_until is not None:
             validate_date(self.fixed_until, "Fixed rate end")
         for change in self.rate_changes:
             if change.date < self.start_date:
-                raise ValueError("Rate change precedes the simulation start.")
+                raise InputError("validation.rate_change_precedes_the_simulation_start")
             if self.fixed_until is not None and change.date < self.fixed_until:
-                raise ValueError(
-                    "Rate changes cannot occur within the fixed-rate period."
+                raise InputError(
+                    "validation.rate_changes_cannot_occur_within_the_fixed_rate_period"
                 )
         if len({c.date for c in self.rate_changes}) != len(self.rate_changes):
-            raise ValueError("Only one rate change is allowed on each date.")
+            raise InputError("validation.only_one_rate_change_is_allowed_on_each_date")
         if len({c.date for c in self.term_changes}) != len(self.term_changes):
-            raise ValueError("Only one term instruction is allowed on each date.")
+            raise InputError(
+                "validation.only_one_term_instruction_is_allowed_on_each_date"
+            )
         if not isinstance(self.repayment_model, RepaymentModel):
-            raise ValueError("Unknown repayment model.")
+            raise InputError("validation.unknown_repayment_model")
         if self.repayment_model == RepaymentModel.ING:
             if self.installment_method != InstallmentMethod.CALENDAR:
-                raise ValueError("Model ING wymaga raty kalendarzowej.")
+                raise InputError(
+                    "validation.the_ing_model_requires_calendar_installments"
+                )
             if self.term_changes:
-                raise ValueError("W modelu ING użyj aneksu z docelową ratą.")
+                raise InputError(
+                    "validation.use_a_target_installment_amendment_in_the_ing_model"
+                )
         elif self.annexes:
-            raise ValueError("Aneksy z docelową ratą wymagają modelu ING.")
+            raise InputError(
+                "validation.target_installment_amendments_require_the_ing_model"
+            )
         if len({a.date for a in self.annexes}) != len(self.annexes):
-            raise ValueError("Dopuszczalny jest jeden aneks danego dnia.")
+            raise InputError("validation.only_one_amendment_is_allowed_per_date")
         for holiday in self.additional_holidays:
             validate_date(holiday, "Holiday")
 
